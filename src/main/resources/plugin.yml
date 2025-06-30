@@ -1,0 +1,53 @@
+name: MythicFish
+version: 1.0.0
+author: Fl1uxxNoob
+main: net.fliuxx.mythicFish.MythicFish
+api-version: 1.20
+description: Custom fishing plugin with collectible fish system
+website: https://github.com/Fl1uxxNoob/MythicFish
+
+softdepend:
+  - LuckPerms
+
+commands:
+  mythicfish:
+    description: Main command for MythicFish plugin
+    usage: /mythicfish <collection|reload|help>
+    aliases: [mfish, mythicf]
+
+permissions:
+  mythicfish.*:
+    description: Gives access to all MythicFish permissions
+    default: op
+    children:
+      mythicfish.fish: true
+      mythicfish.collection: true
+      mythicfish.quest: true
+      mythicfish.admin.*: true
+  
+  mythicfish.fish:
+    description: Allows player to fish custom fish
+    default: true
+  
+  mythicfish.collection:
+    description: Allows player to view their fish collection
+    default: true
+  
+  mythicfish.quest:
+    description: Allows player to view and claim quest rewards
+    default: true
+  
+  mythicfish.admin.*:
+    description: Gives access to all admin commands
+    default: op
+    children:
+      mythicfish.admin: true
+      mythicfish.admin.reload: true
+  
+  mythicfish.admin:
+    description: Allows access to admin commands
+    default: op
+  
+  mythicfish.admin.reload:
+    description: Allows reloading the plugin configuration
+    default: op

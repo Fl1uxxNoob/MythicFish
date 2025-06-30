@@ -1,0 +1,237 @@
+# MythicFish Configuration
+# Developed By Fl1uxxNoob
+
+settings:
+  # Disable vanilla Minecraft fishing and only use custom fishing
+  disable-vanilla-fishing: true
+  
+  # Enable debug messages
+  debug: false
+
+database:
+  # Enable database storage for player fish collections
+  enabled: true
+  
+  # Path to the SQLite database file
+  path: "plugins/MythicFish/data.db"
+
+# Fish Configuration
+# Each fish has the following properties:
+# - display-name: The name shown to players
+# - color: Color code for the fish name (&a, &b, etc.)
+# - rarity: COMMON, UNCOMMON, RARE, EPIC, LEGENDARY
+# - catch-chance: Base chance multiplier (1.0 = normal, 2.0 = double chance)
+# - material: Minecraft material for the fish item
+# - description: Description shown in the collection GUI
+# - allowed-biomes: List of biomes where this fish can be caught (empty = all biomes)
+# - restricted-biomes: List of biomes where this fish cannot be caught
+
+fish:
+  common_cod:
+    display-name: "Common Cod"
+    color: "&f"
+    rarity: COMMON
+    catch-chance: 2.0
+    material: COD
+    description: "A regular cod found in most waters."
+    allowed-biomes: []
+    restricted-biomes: []
+  
+  river_trout:
+    display-name: "River Trout"
+    color: "&a"
+    rarity: UNCOMMON
+    catch-chance: 1.2
+    material: SALMON
+    description: "A silvery trout that prefers flowing waters."
+    allowed-biomes:
+      - RIVER
+      - FROZEN_RIVER
+    restricted-biomes:
+      - OCEAN
+      - DEEP_OCEAN
+  
+  golden_salmon:
+    display-name: "Golden Salmon"
+    color: "&6"
+    rarity: RARE
+    catch-chance: 0.8
+    material: SALMON
+    description: "A rare salmon with a beautiful golden hue."
+    allowed-biomes:
+      - RIVER
+      - FROZEN_RIVER
+      - TAIGA
+      - SNOWY_TAIGA
+    restricted-biomes: []
+  
+  deep_sea_anglerfish:
+    display-name: "Deep Sea Anglerfish"
+    color: "&5"
+    rarity: EPIC
+    catch-chance: 0.3
+    material: COD
+    description: "A mysterious fish from the deepest parts of the ocean."
+    allowed-biomes:
+      - DEEP_OCEAN
+      - DEEP_COLD_OCEAN
+      - DEEP_FROZEN_OCEAN
+      - DEEP_LUKEWARM_OCEAN
+    restricted-biomes: []
+  
+  mythical_leviathan:
+    display-name: "Mythical Leviathan"
+    color: "&b&l"
+    rarity: LEGENDARY
+    catch-chance: 0.1
+    material: COD
+    description: "A legendary sea creature of immense power and beauty."
+    allowed-biomes:
+      - DEEP_OCEAN
+    restricted-biomes: []
+  
+  swamp_catfish:
+    display-name: "Swamp Catfish"
+    color: "&2"
+    rarity: UNCOMMON
+    catch-chance: 1.5
+    material: COD
+    description: "A hardy catfish that thrives in murky swamp waters."
+    allowed-biomes:
+      - SWAMP
+      - MANGROVE_SWAMP
+    restricted-biomes: []
+  
+  crystal_bass:
+    display-name: "Crystal Bass"
+    color: "&b"
+    rarity: RARE
+    catch-chance: 0.6
+    material: COD
+    description: "A translucent bass that seems to glow with inner light."
+    allowed-biomes:
+      - LUKEWARM_OCEAN
+      - WARM_OCEAN
+    restricted-biomes: []
+  
+  ice_perch:
+    display-name: "Ice Perch"
+    color: "&3"
+    rarity: UNCOMMON
+    catch-chance: 1.0
+    material: COD
+    description: "A resilient perch adapted to icy waters."
+    allowed-biomes:
+      - FROZEN_OCEAN
+      - DEEP_FROZEN_OCEAN
+      - FROZEN_RIVER
+    restricted-biomes: []
+  
+  volcanic_tuna:
+    display-name: "Volcanic Tuna"
+    color: "&c"
+    rarity: EPIC
+    catch-chance: 0.4
+    material: SALMON
+    description: "A rare tuna found only in the warmest tropical waters."
+    allowed-biomes:
+      - WARM_OCEAN
+    restricted-biomes: []
+  
+  phantom_eel:
+    display-name: "Phantom Eel"
+    color: "&8"
+    rarity: LEGENDARY
+    catch-chance: 0.05
+    material: COD
+    description: "An ethereal eel that phases between dimensions."
+    allowed-biomes: []
+    restricted-biomes: []
+
+# Quest Configuration
+# Quest types: CATCH_TOTAL, CATCH_SPECIFIC, CATCH_RARITY
+# Rewards are console commands executed when quest is claimed
+quests:
+  beginner_fisher:
+    display-name: "&aBeginner Fisher"
+    description: "Catch your first 5 fish"
+    type: CATCH_TOTAL
+    target: ""
+    required-amount: 5
+    gui-material: FISHING_ROD
+    gui-color: "&a"
+    reward-message: "&aYou received 2 diamonds and 5 experience bottles!"
+    reward-display:
+      - "&f• &e2x Diamond"
+      - "&f• &e5x Experience Bottle"
+    rewards:
+      - "give {player} minecraft:diamond 2"
+      - "give {player} minecraft:experience_bottle 5"
+  
+  swamp_explorer:
+    display-name: "&2Swamp Explorer"
+    description: "Catch a Swamp Catfish"
+    type: CATCH_SPECIFIC
+    target: "swamp_catfish"
+    required-amount: 1
+    gui-material: LILY_PAD
+    gui-color: "&2"
+    reward-message: "&aYou received 3 emeralds and 10 slime balls for exploring the swamp!"
+    reward-display:
+      - "&f• &a3x Emerald"
+      - "&f• &a10x Slime Ball"
+    rewards:
+      - "give {player} minecraft:emerald 3"
+      - "give {player} minecraft:slime_ball 10"
+  
+  rare_collector:
+    display-name: "&9Rare Collector"
+    description: "Collect 3 rare fish"
+    type: CATCH_RARITY
+    target: "RARE"
+    required-amount: 3
+    gui-material: DIAMOND
+    gui-color: "&9"
+    reward-message: "&bYou received 5 diamonds and an enchanted book for collecting rare fish!"
+    reward-display:
+      - "&f• &b5x Diamond"
+      - "&f• &b1x Enchanted Book"
+    rewards:
+      - "give {player} minecraft:diamond 5"
+      - "give {player} minecraft:enchanted_book 1"
+  
+  legendary_angler:
+    display-name: "&6Legendary Angler"
+    description: "Catch a legendary fish"
+    type: CATCH_RARITY
+    target: "LEGENDARY"
+    required-amount: 1
+    gui-material: NETHER_STAR
+    gui-color: "&6"
+    reward-message: "&6Legendary achievement! You received a diamond block, netherite ingot, and 20 experience bottles!"
+    reward-display:
+      - "&f• &61x Diamond Block"
+      - "&f• &61x Netherite Ingot"
+      - "&f• &620x Experience Bottle"
+    rewards:
+      - "give {player} minecraft:diamond_block 1"
+      - "give {player} minecraft:netherite_ingot 1"
+      - "give {player} minecraft:experience_bottle 20"
+  
+  master_fisher:
+    display-name: "&dMaster Fisher"
+    description: "Catch 25 fish total"
+    type: CATCH_TOTAL
+    target: ""
+    required-amount: 25
+    gui-material: ENCHANTED_BOOK
+    gui-color: "&d"
+    reward-message: "&dMaster Fisher rewards: 2 diamond blocks, 30 experience bottles, and 1000 coins!"
+    reward-display:
+      - "&f• &d2x Diamond Block"
+      - "&f• &d30x Experience Bottle"
+      - "&f• &d1000 Coins"
+    rewards:
+      - "give {player} minecraft:diamond_block 2"
+      - "give {player} minecraft:experience_bottle 30"
+      - "eco give {player} 1000"

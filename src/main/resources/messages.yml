@@ -1,0 +1,52 @@
+# MythicFish Messages Configuration
+# Developed By Fl1uxxNoob
+# Use & for color codes
+# Available placeholders: {player}, {fish}, {rarity}, {biome}
+
+# General Messages
+no-permission: "&cYou don't have permission to do that!"
+players-only: "&cThis command can only be used by players!"
+plugin-reloaded: "&aMythicFish plugin has been reloaded successfully!"
+
+# Fishing Messages
+new-fish-caught: "&a&lNEW FISH! &7You caught a {rarity} &7{fish}&7!"
+fish-caught: "&7You caught a {rarity} &7{fish}&7!"
+no-fish-in-biome: "&cNo fish can be caught in this biome!"
+
+# Collection GUI
+collection-gui-title: "&6&lFish Collection"
+
+# Quest GUI
+quest-gui-title: "&6&lFish Quests"
+quest-completed: "&a&lQUEST COMPLETED! &7{quest}"
+quest-already-claimed: "&cYou have already claimed the rewards for this quest!"
+quest-not-completed: "&cThis quest is not completed yet!"
+quest-rewards-claimed: "&aYou have claimed the rewards for quest: &e{quest}"
+
+# Admin Messages
+admin-help: |
+  &6&l=== MythicFish Admin Commands ===
+  &e/mfish admin setstats <player> give <fishId> &7- Give fish to player
+  &e/mfish admin setstats <player> remove <fishId> &7- Remove fish from player
+  &e/mfish admin setstats <player> reset &7- Reset player collection
+admin-setstats-usage: "&cUsage: /mfish admin setstats <player> <give|remove|reset> [fishId]"
+admin-give-usage: "&cUsage: /mfish admin setstats <player> give <fishId>"
+admin-remove-usage: "&cUsage: /mfish admin setstats <player> remove <fishId>"
+player-not-found: "&cPlayer {player} not found!"
+fish-not-found: "&cFish {fish} not found!"
+admin-fish-given: "&aGiven fish {fish} to player {player}!"
+admin-fish-removed: "&aRemoved fish {fish} from player {player}!"
+admin-collection-reset: "&aReset collection for player {player}!"
+
+# Help Message
+help-message: |
+  &6&l=== MythicFish Help ===
+  &e/mythicfish collection &7- View your fish collection
+  &e/mythicfish quest &7- View and claim quest rewards
+  &e/mythicfish reload &7- Reload plugin configuration (Admin)
+  &e/mythicfish admin &7- Admin commands (Admin)
+  &e/mythicfish help &7- Show this help message
+  
+  &7Catch different types of fish by fishing in various biomes!
+  &7Each fish has different rarities and can only be found in specific locations.
+  &7Complete quests to earn rewards!
