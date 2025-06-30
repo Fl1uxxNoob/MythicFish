@@ -201,6 +201,12 @@ For support and bug reports:
 - Contact the developers
 - Check the documentation
 
+## License
+
+AFKGuard is licensed under the **GNU General Public License v3.0** (GPL-3.0).  
+You are free to use, modify, and distribute this software under the terms of the license.  
+A copy of the license is available in the [LICENSE](./LICENSE) file.
+
 ---
 
-**Developed with ❤️ for the Minecraft community**
+**Developed by Fl1uxxNoob**
