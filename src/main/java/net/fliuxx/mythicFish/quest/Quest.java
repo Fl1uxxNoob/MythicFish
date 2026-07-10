@@ -17,10 +17,12 @@ public class Quest {
     private final String rewardMessage;
     private final Material guiMaterial;
     private final String guiColor;
-    
-    public Quest(String id, String displayName, String description, QuestType type, 
-                QuestTarget target, int requiredAmount, List<String> rewards, 
-                List<String> rewardDisplay, String rewardMessage, Material guiMaterial, String guiColor) {
+    private final int cooldownSeconds;
+
+    public Quest(String id, String displayName, String description, QuestType type,
+                QuestTarget target, int requiredAmount, List<String> rewards,
+                List<String> rewardDisplay, String rewardMessage, Material guiMaterial, String guiColor,
+                int cooldownSeconds) {
         this.id = id;
         this.displayName = displayName;
         this.description = description;
@@ -32,6 +34,7 @@ public class Quest {
         this.rewardMessage = rewardMessage;
         this.guiMaterial = guiMaterial;
         this.guiColor = guiColor;
+        this.cooldownSeconds = cooldownSeconds;
     }
     
     public String getId() {
@@ -77,7 +80,17 @@ public class Quest {
     public String getGuiColor() {
         return guiColor;
     }
-    
+
+    /** Seconds after a claim before this quest becomes available again. 0 = one-time quest. */
+    public int getCooldownSeconds() {
+        return cooldownSeconds;
+    }
+
+    /** Whether this quest can be repeated after its cooldown elapses. */
+    public boolean isRepeatable() {
+        return cooldownSeconds > 0;
+    }
+
     public enum QuestType {
         CATCH_TOTAL,      // Catch X fish total
         CATCH_SPECIFIC,   // Catch specific fish

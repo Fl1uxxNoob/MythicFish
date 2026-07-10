@@ -71,6 +71,11 @@ public class MythicFishCommand implements CommandExecutor, TabCompleter {
                 handleTopCommand(sender);
                 break;
 
+            case "credits":
+                // Available to everyone, no permission required
+                sender.sendMessage(plugin.getMessagesManager().getMessage("credits-message"));
+                break;
+
             case "admin":
                 if (!sender.hasPermission("mythicfish.admin")) {
                     sender.sendMessage(plugin.getMessagesManager().getMessage("no-permission"));
@@ -147,10 +152,44 @@ public class MythicFishCommand implements CommandExecutor, TabCompleter {
             case "reset":
                 handleResetCommand(sender, args);
                 break;
+            case "resetquest":
+                handleResetQuestCommand(sender, args);
+                break;
             default:
                 sender.sendMessage(plugin.getMessagesManager().getMessage("admin-help"));
                 break;
         }
+    }
+
+    private void handleResetQuestCommand(CommandSender sender, String[] args) {
+        // /mfish admin resetquest <player> <questId>
+        if (args.length < 4) {
+            sender.sendMessage(plugin.getMessagesManager().getMessage("admin-resetquest-usage"));
+            return;
+        }
+
+        OfflinePlayer target = Bukkit.getOfflinePlayer(args[2]);
+        if (!target.hasPlayedBefore() && !target.isOnline()) {
+            sender.sendMessage(plugin.getMessagesManager().getMessage("player-not-found", "{player}", args[2]));
+            return;
+        }
+
+        String questId = args[3];
+        if (plugin.getQuestManager().getQuest(questId) == null) {
+            sender.sendMessage(plugin.getMessagesManager().getMessage("quest-not-found", "{quest}", questId));
+            return;
+        }
+
+        plugin.getDatabaseManager().resetQuest(target.getUniqueId(), questId);
+        if (target.isOnline()) {
+            PlayerData data = plugin.getPlayerDataManager().get(target.getUniqueId());
+            if (data != null) {
+                data.resetQuest(questId);
+            }
+        }
+
+        sender.sendMessage(plugin.getMessagesManager().getMessage("admin-quest-reset",
+                "{player}", target.getName(), "{quest}", questId));
     }
     
     private void handleSetStatsCommand(CommandSender sender, String[] args) {
@@ -280,10 +319,11 @@ public class MythicFishCommand implements CommandExecutor, TabCompleter {
             if (sender.hasPermission("mythicfish.admin.reload")) {
                 completions.add("reload");
             }
+            completions.add("credits");
             completions.add("help");
         } else if (args.length == 2 && args[0].equalsIgnoreCase("admin")) {
             if (sender.hasPermission("mythicfish.admin")) {
-                completions.addAll(Arrays.asList("setstats", "give", "remove", "reset"));
+                completions.addAll(Arrays.asList("setstats", "give", "remove", "reset", "resetquest"));
             }
         } else if (args.length == 3 && args[0].equalsIgnoreCase("admin")) {
             // Player names
@@ -292,7 +332,12 @@ public class MythicFishCommand implements CommandExecutor, TabCompleter {
             }
         } else if (args.length == 4 && args[0].equalsIgnoreCase("admin") && args[1].equalsIgnoreCase("setstats")) {
             completions.addAll(Arrays.asList("give", "remove", "reset"));
-        } else if (args.length == 5 && args[0].equalsIgnoreCase("admin") && 
+        } else if (args.length == 4 && args[0].equalsIgnoreCase("admin") && args[1].equalsIgnoreCase("resetquest")) {
+            // Quest IDs
+            for (var quest : plugin.getQuestManager().getAllQuests()) {
+                completions.add(quest.getId());
+            }
+        } else if (args.length == 5 && args[0].equalsIgnoreCase("admin") &&
                   (args[1].equalsIgnoreCase("setstats") || args[1].equalsIgnoreCase("give") || args[1].equalsIgnoreCase("remove"))) {
             // Fish IDs
             completions.addAll(plugin.getFishManager().getFishMap().keySet());

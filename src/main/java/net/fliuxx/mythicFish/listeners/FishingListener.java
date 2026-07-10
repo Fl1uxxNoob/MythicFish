@@ -87,14 +87,15 @@ public class FishingListener implements Listener {
         plugin.getDatabaseManager().addFishToPlayer(uuid, caughtFish.getId(), biome.getKey().toString());
         plugin.getDatabaseManager().incrementTotalCatches(uuid, player.getName());
 
+        String rarityName = plugin.getMessagesManager().getRarityName(caughtFish.getRarity());
         if (isNewFish) {
             player.sendMessage(plugin.getMessagesManager().getMessage("new-fish-caught",
                     "{fish}", caughtFish.getDisplayName(),
-                    "{rarity}", caughtFish.getRarity().getColoredDisplayName()));
+                    "{rarity}", rarityName));
         } else {
             player.sendMessage(plugin.getMessagesManager().getMessage("fish-caught",
                     "{fish}", caughtFish.getDisplayName(),
-                    "{rarity}", caughtFish.getRarity().getColoredDisplayName()));
+                    "{rarity}", rarityName));
         }
 
         // Server-wide announcement for rare catches
@@ -129,7 +130,7 @@ public class FishingListener implements Listener {
         String message = plugin.getMessagesManager().getMessage("announcement-rare-catch",
                 "{player}", player.getName(),
                 "{fish}", fish.getDisplayName(),
-                "{rarity}", fish.getRarity().getColoredDisplayName());
+                "{rarity}", plugin.getMessagesManager().getRarityName(fish.getRarity()));
         Bukkit.broadcastMessage(message);
 
         // Optional broadcast sound, referenced by its sound key (e.g. "entity.player.levelup")
@@ -143,14 +144,17 @@ public class FishingListener implements Listener {
 
     private ItemStack createFishItem(Fish fish) {
         String coloredName = ChatColor.translateAlternateColorCodes('&', fish.getColor() + fish.getDisplayName());
+        String description = ChatColor.translateAlternateColorCodes('&', fish.getDescription());
+        String caughtWith = plugin.getMessagesManager().getMessageOr("fish-item.caught-with",
+                "&8Caught with MythicFish");
 
         return new ItemBuilder(fish.getMaterial())
                 .setDisplayName(coloredName)
-                .addLoreLine(fish.getRarity().getColoredDisplayName())
+                .addLoreLine(plugin.getMessagesManager().getRarityName(fish.getRarity()))
                 .addLoreLine("")
-                .addLoreLine(ChatColor.GRAY + fish.getDescription())
+                .addLoreLine(ChatColor.GRAY + description)
                 .addLoreLine("")
-                .addLoreLine(ChatColor.DARK_GRAY + "Caught with MythicFish")
+                .addLoreLine(caughtWith)
                 .build();
     }
 }

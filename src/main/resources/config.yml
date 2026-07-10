@@ -187,6 +187,10 @@ fish:
 # Quest Configuration
 # Quest types: CATCH_TOTAL, CATCH_SPECIFIC, CATCH_RARITY
 # Rewards are console commands executed when quest is claimed
+# cooldown-seconds: 0 (or omitted) = one-time quest. A value > 0 makes the quest
+#   repeatable: it resets that many seconds after the player CLAIMS its reward, so
+#   they can complete and claim it again. (For repeatable CATCH_TOTAL quests the
+#   counter is per-cycle, i.e. the player must catch that many fish again.)
 quests:
   beginner_fisher:
     display-name: "&aBeginner Fisher"
@@ -194,6 +198,7 @@ quests:
     type: CATCH_TOTAL
     target: ""
     required-amount: 5
+    cooldown-seconds: 0
     gui-material: FISHING_ROD
     gui-color: "&a"
     reward-message: "&aYou received 2 diamonds and 5 experience bottles!"
@@ -210,6 +215,7 @@ quests:
     type: CATCH_SPECIFIC
     target: "swamp_catfish"
     required-amount: 1
+    cooldown-seconds: 0
     gui-material: LILY_PAD
     gui-color: "&2"
     reward-message: "&aYou received 3 emeralds and 10 slime balls for exploring the swamp!"
@@ -226,6 +232,7 @@ quests:
     type: CATCH_RARITY
     target: "RARE"
     required-amount: 3
+    cooldown-seconds: 0
     gui-material: DIAMOND
     gui-color: "&9"
     reward-message: "&bYou received 5 diamonds and an enchanted book for collecting rare fish!"
@@ -242,6 +249,7 @@ quests:
     type: CATCH_RARITY
     target: "LEGENDARY"
     required-amount: 1
+    cooldown-seconds: 0
     gui-material: NETHER_STAR
     gui-color: "&6"
     reward-message: "&6Legendary achievement! You received a diamond block, netherite ingot, and 20 experience bottles!"
@@ -260,6 +268,8 @@ quests:
     type: CATCH_TOTAL
     target: ""
     required-amount: 25
+    # Example of a repeatable quest: resets 24h (86400s) after being claimed.
+    cooldown-seconds: 86400
     gui-material: ENCHANTED_BOOK
     gui-color: "&d"
     reward-message: "&dMaster Fisher rewards: 2 diamond blocks, 30 experience bottles, and 1000 coins!"

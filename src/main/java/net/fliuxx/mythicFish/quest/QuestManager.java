@@ -47,9 +47,11 @@ public class QuestManager {
                 String rewardMessage = questConfig.getString("reward-message", "&aQuest completed!");
                 Material guiMaterial = Material.valueOf(questConfig.getString("gui-material", "PAPER").toUpperCase());
                 String guiColor = questConfig.getString("gui-color", "&f");
+                int cooldownSeconds = questConfig.getInt("cooldown-seconds", 0);
 
-                Quest quest = new Quest(questId, displayName, description, type, target, 
-                                      requiredAmount, rewards, rewardDisplay, rewardMessage, guiMaterial, guiColor);
+                Quest quest = new Quest(questId, displayName, description, type, target,
+                                      requiredAmount, rewards, rewardDisplay, rewardMessage, guiMaterial, guiColor,
+                                      cooldownSeconds);
 
                 quests.put(questId, quest);
 
@@ -69,12 +71,54 @@ public class QuestManager {
         return quests.values();
     }
 
+    /**
+     * Reset any repeatable quest whose cooldown has elapsed since it was claimed, both in the cache
+     * and in the database. Called lazily (on each catch and when the quest GUI is opened) so it stays
+     * consistent with the cache-first design without needing a scheduled task.
+     */
+    public void applyQuestCooldowns(UUID playerUUID, PlayerData data) {
+        if (data == null) {
+            return;
+        }
+        long now = System.currentTimeMillis() / 1000L;
+        for (Quest quest : quests.values()) {
+            if (!quest.isRepeatable() || !data.hasClaimedQuest(quest.getId())) {
+                continue;
+            }
+            long claimedAt = data.getQuestClaimedAt(quest.getId());
+            if (claimedAt > 0 && now - claimedAt >= quest.getCooldownSeconds()) {
+                data.resetQuest(quest.getId());
+                plugin.getDatabaseManager().resetQuest(playerUUID, quest.getId());
+            }
+        }
+    }
+
+    /**
+     * Remaining cooldown in seconds before a claimed repeatable quest becomes available again,
+     * or 0 if it is ready / not on cooldown.
+     */
+    public long getRemainingCooldown(PlayerData data, Quest quest) {
+        if (data == null || !quest.isRepeatable() || !data.hasClaimedQuest(quest.getId())) {
+            return 0;
+        }
+        long claimedAt = data.getQuestClaimedAt(quest.getId());
+        if (claimedAt <= 0) {
+            return 0;
+        }
+        long elapsed = System.currentTimeMillis() / 1000L - claimedAt;
+        long remaining = quest.getCooldownSeconds() - elapsed;
+        return Math.max(0, remaining);
+    }
+
     public void checkQuestCompletion(Player player, Fish caughtFish) {
         UUID playerUUID = player.getUniqueId();
         PlayerData data = plugin.getPlayerDataManager().get(playerUUID);
         if (data == null) {
             return;
         }
+
+        // Reset any repeatable quests whose cooldown has elapsed before evaluating this catch.
+        applyQuestCooldowns(playerUUID, data);
 
         for (Quest quest : quests.values()) {
             if (data.hasCompletedQuest(quest.getId())) {
@@ -85,8 +129,16 @@ public class QuestManager {
 
             switch (quest.getType()) {
                 case CATCH_TOTAL:
-                    // Total catches counts every catch (repeats included), tracked in the cache
-                    shouldComplete = data.getTotalCatches() >= quest.getRequiredAmount();
+                    if (quest.isRepeatable()) {
+                        // Repeatable: count catches since the last reset so each cycle needs fresh catches,
+                        // otherwise the lifetime total would instantly re-satisfy the quest after cooldown.
+                        int totalProgress = data.incrementQuestProgress(quest.getId());
+                        plugin.getDatabaseManager().updateQuestProgress(playerUUID, quest.getId(), 1);
+                        shouldComplete = totalProgress >= quest.getRequiredAmount();
+                    } else {
+                        // One-time: lifetime total catches (repeats included), tracked in the cache
+                        shouldComplete = data.getTotalCatches() >= quest.getRequiredAmount();
+                    }
                     break;
 
                 case CATCH_SPECIFIC:

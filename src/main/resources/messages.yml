@@ -8,10 +8,25 @@ no-permission: "&cYou don't have permission to do that!"
 players-only: "&cThis command can only be used by players!"
 plugin-reloaded: "&aMythicFish plugin has been reloaded successfully!"
 
+# Credits (accessible to everyone via /mythicfish credits)
+credits-message: "&6Developed by &eFl1uxxNoob"
+
+# Rarity display names (used across messages, GUIs and item lore)
+rarities:
+  COMMON: "&fCommon"
+  UNCOMMON: "&aUncommon"
+  RARE: "&9Rare"
+  EPIC: "&5Epic"
+  LEGENDARY: "&6Legendary"
+
 # Fishing Messages
 new-fish-caught: "&a&lNEW FISH! &7You caught a {rarity} &7{fish}&7!"
 fish-caught: "&7You caught a {rarity} &7{fish}&7!"
 no-fish-in-biome: "&cNo fish can be caught in this biome!"
+
+# Fish item lore (the physical item given to the player)
+fish-item:
+  caught-with: "&8Caught with MythicFish"
 
 # Rare-catch Announcement (broadcast to everyone)
 announcement-rare-catch: "&6&l✦ &e{player} &7just caught a {rarity} &7{fish}&7!"
@@ -32,16 +47,54 @@ quest-already-claimed: "&cYou have already claimed the rewards for this quest!"
 quest-not-completed: "&cThis quest is not completed yet!"
 quest-rewards-claimed: "&aYou have claimed the rewards for quest: &e{quest}"
 
+# GUI labels (Collection & Quest interfaces)
+# Placeholders available depend on the line: {player}, {amount}, {biome},
+# {target}, {rarity}, {current}, {required}, {time}
+gui:
+  collection:
+    locked-name: "&8??? Locked Fish"
+    best-found: "&bBest found in:"
+    can-be-found: "&bCan be found in:"
+    found-most-biomes: "&bCan be found in most biomes"
+    biome-entry: "&3  • {biome}"
+    unlocked: "&a✓ &7Unlocked"
+    locked: "&c✗ &7Not unlocked"
+    locked-hint: "&7Catch this fish to unlock!"
+  quest:
+    requirement: "&eRequirement:"
+    req-total: "&fCatch {amount} fish total"
+    req-specific: "&fCatch {amount}x {target}"
+    req-rarity: "&fCatch {amount} {rarity} &ffish"
+    progress: "&7Progress: {current}/{required}"
+    rewards: "&6Rewards:"
+    status-claimed: "&a✓ &7Completed & Claimed"
+    status-completed: "&a✓ &7Completed - Click to claim rewards!"
+    status-incomplete: "&c✗ &7Not completed"
+    status-cooldown: "&e⏳ &7Available again in &e{time}"
+    invalid: "&cInvalid quest configuration"
+  stats:
+    title: "&6&l{player}'s Statistics"
+    fish-collected: "&bFish Collected: &f{amount}"
+    quests-completed: "&aQuests Completed: &f{amount}"
+    quests-claimed: "&6Quests Claimed: &f{amount}"
+    collection-footer1: "&7Keep fishing to unlock more fish!"
+    collection-footer2: "&7Use /mfish quest to view quests"
+    quest-footer: "&7Keep fishing to complete more quests!"
+
 # Admin Messages
 admin-help: |
   &6&l=== MythicFish Admin Commands ===
   &e/mfish admin setstats <player> give <fishId> &7- Give fish to player
   &e/mfish admin setstats <player> remove <fishId> &7- Remove fish from player
   &e/mfish admin setstats <player> reset &7- Reset player collection
+  &e/mfish admin resetquest <player> <questId> &7- Reset a quest's timer for a player
 admin-setstats-usage: "&cUsage: /mfish admin setstats <player> <give|remove|reset> [fishId]"
 admin-give-usage: "&cUsage: /mfish admin setstats <player> give <fishId>"
 admin-remove-usage: "&cUsage: /mfish admin setstats <player> remove <fishId>"
 admin-reset-usage: "&cUsage: /mfish admin setstats <player> reset"
+admin-resetquest-usage: "&cUsage: /mfish admin resetquest <player> <questId>"
+quest-not-found: "&cQuest {quest} not found!"
+admin-quest-reset: "&aReset quest {quest} for player {player}!"
 player-not-found: "&cPlayer {player} not found!"
 fish-not-found: "&cFish {fish} not found!"
 admin-fish-given: "&aGiven fish {fish} to player {player}!"
@@ -54,6 +107,7 @@ help-message: |
   &e/mythicfish collection &7- View your fish collection
   &e/mythicfish quest &7- View and claim quest rewards
   &e/mythicfish top &7- View the fishing leaderboard
+  &e/mythicfish credits &7- Show the plugin credits
   &e/mythicfish reload &7- Reload plugin configuration (Admin)
   &e/mythicfish admin &7- Admin commands (Admin)
   &e/mythicfish help &7- Show this help message

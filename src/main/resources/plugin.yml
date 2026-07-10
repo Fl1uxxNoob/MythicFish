@@ -13,7 +13,7 @@ softdepend:
 commands:
   mythicfish:
     description: Main command for MythicFish plugin
-    usage: /mythicfish <collection|quest|top|reload|help>
+    usage: /mythicfish <collection|quest|top|credits|reload|help>
     aliases: [mfish, mythicf]
 
 permissions:

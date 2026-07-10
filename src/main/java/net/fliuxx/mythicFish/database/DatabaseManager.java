@@ -172,7 +172,10 @@ public class DatabaseManager {
                 plugin.getLogger().severe("Failed to load player stats: " + e.getMessage());
             }
 
-            String questSql = "SELECT quest_id, progress, completed, claimed FROM player_quests WHERE player_uuid = ?";
+            // claimed_at is stored via CURRENT_TIMESTAMP (UTC); strftime('%s', ...) gives its epoch seconds.
+            String questSql = "SELECT quest_id, progress, completed, claimed, " +
+                    "CAST(strftime('%s', claimed_at) AS INTEGER) AS claimed_epoch " +
+                    "FROM player_quests WHERE player_uuid = ?";
             try (PreparedStatement pstmt = connection.prepareStatement(questSql)) {
                 pstmt.setString(1, uuid);
                 ResultSet rs = pstmt.executeQuery();
@@ -184,6 +187,10 @@ public class DatabaseManager {
                     }
                     if (rs.getBoolean("claimed")) {
                         data.markQuestClaimed(questId);
+                        long claimedEpoch = rs.getLong("claimed_epoch");
+                        if (claimedEpoch > 0) {
+                            data.setQuestClaimedAt(questId, claimedEpoch);
+                        }
                     }
                 }
             } catch (SQLException e) {
@@ -312,6 +319,23 @@ public class DatabaseManager {
                 pstmt.executeUpdate();
             } catch (SQLException e) {
                 plugin.getLogger().severe("Failed to remove fish from player: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Remove a single quest's row so its progress/completion/claim state is wiped. Used both by the
+     * repeatable-quest cooldown reset and by the admin {@code resetquest} command.
+     */
+    public void resetQuest(UUID playerUUID, String questId) {
+        write(() -> {
+            String sql = "DELETE FROM player_quests WHERE player_uuid = ? AND quest_id = ?";
+            try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+                pstmt.setString(1, playerUUID.toString());
+                pstmt.setString(2, questId);
+                pstmt.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Failed to reset quest: " + e.getMessage());
             }
         });
     }

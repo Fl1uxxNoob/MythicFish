@@ -76,74 +76,82 @@ public class CollectionGUI implements Listener {
     }
     
     private ItemStack createUnlockedFishItem(Fish fish) {
+        var messages = plugin.getMessagesManager();
         String coloredName = ChatColor.translateAlternateColorCodes('&', fish.getColor() + fish.getDisplayName());
-        
+
         ItemBuilder builder = new ItemBuilder(fish.getMaterial())
                 .setDisplayName(coloredName)
-                .addLoreLine(fish.getRarity().getColoredDisplayName())
+                .addLoreLine(messages.getRarityName(fish.getRarity()))
                 .addLoreLine("");
-        
+
         if (!fish.getDescription().isEmpty()) {
-            builder.addLoreLine(ChatColor.GRAY + fish.getDescription());
+            builder.addLoreLine(ChatColor.GRAY + ChatColor.translateAlternateColorCodes('&', fish.getDescription()));
             builder.addLoreLine("");
         }
-        
+
         // Add biome information
         if (fish.getAllowedBiomes() != null && !fish.getAllowedBiomes().isEmpty()) {
-            builder.addLoreLine(ChatColor.AQUA + "Best found in:");
+            builder.addLoreLine(messages.getMessageOr("gui.collection.best-found", "&bBest found in:"));
             for (Biome biome : fish.getAllowedBiomes()) {
-                builder.addLoreLine(ChatColor.DARK_AQUA + "  • " + formatBiomeName(biome));
+                builder.addLoreLine(messages.getMessageOr("gui.collection.biome-entry", "&3  • {biome}",
+                        "{biome}", formatBiomeName(biome)));
             }
         }
-        
+
         builder.addLoreLine("")
-                .addLoreLine(ChatColor.GREEN + "✓ " + ChatColor.GRAY + "Unlocked");
-        
+                .addLoreLine(messages.getMessageOr("gui.collection.unlocked", "&a✓ &7Unlocked"));
+
         return builder.build();
     }
-    
+
     private ItemStack createLockedFishItem(Fish fish) {
+        var messages = plugin.getMessagesManager();
         ItemBuilder builder = new ItemBuilder(Material.RED_STAINED_GLASS_PANE)
-                .setDisplayName(ChatColor.DARK_GRAY + "??? Locked Fish")
-                .addLoreLine(fish.getRarity().getColoredDisplayName())
+                .setDisplayName(messages.getMessageOr("gui.collection.locked-name", "&8??? Locked Fish"))
+                .addLoreLine(messages.getRarityName(fish.getRarity()))
                 .addLoreLine("");
-        
+
         // Show biome hint for locked fish
         if (fish.getAllowedBiomes() != null && !fish.getAllowedBiomes().isEmpty()) {
-            builder.addLoreLine(ChatColor.AQUA + "Can be found in:");
+            builder.addLoreLine(messages.getMessageOr("gui.collection.can-be-found", "&bCan be found in:"));
             for (Biome biome : fish.getAllowedBiomes()) {
-                builder.addLoreLine(ChatColor.DARK_AQUA + "  • " + formatBiomeName(biome));
+                builder.addLoreLine(messages.getMessageOr("gui.collection.biome-entry", "&3  • {biome}",
+                        "{biome}", formatBiomeName(biome)));
             }
         } else {
-            builder.addLoreLine(ChatColor.AQUA + "Can be found in most biomes");
+            builder.addLoreLine(messages.getMessageOr("gui.collection.found-most-biomes", "&bCan be found in most biomes"));
         }
-        
+
         builder.addLoreLine("")
-                .addLoreLine(ChatColor.RED + "✗ " + ChatColor.GRAY + "Not unlocked")
-                .addLoreLine(ChatColor.GRAY + "Catch this fish to unlock!");
-        
+                .addLoreLine(messages.getMessageOr("gui.collection.locked", "&c✗ &7Not unlocked"))
+                .addLoreLine(messages.getMessageOr("gui.collection.locked-hint", "&7Catch this fish to unlock!"));
+
         return builder.build();
     }
     
     private ItemStack createPlayerStatsItem() {
-        ItemBuilder builder = new ItemBuilder(Material.PLAYER_HEAD)
-                .setDisplayName(ChatColor.GOLD + "" + ChatColor.BOLD + player.getName() + "'s Statistics");
-        
+        var messages = plugin.getMessagesManager();
+
         // Get player statistics from the in-memory cache
         PlayerData data = plugin.getPlayerDataManager().get(player.getUniqueId());
         int totalFish = data != null ? data.getUniqueFishCount() : 0;
         int completedQuests = data != null ? data.getCompletedQuestCount() : 0;
         int claimedQuests = data != null ? data.getClaimedQuestCount() : 0;
-        
-        builder.addLoreLine("")
-                .addLoreLine(ChatColor.AQUA + "Fish Collected: " + ChatColor.WHITE + totalFish)
-                .addLoreLine(ChatColor.GREEN + "Quests Completed: " + ChatColor.WHITE + completedQuests)
-                .addLoreLine(ChatColor.GOLD + "Quests Claimed: " + ChatColor.WHITE + claimedQuests)
+
+        return new ItemBuilder(Material.PLAYER_HEAD)
+                .setDisplayName(messages.getMessageOr("gui.stats.title", "&6&l{player}'s Statistics",
+                        "{player}", player.getName()))
                 .addLoreLine("")
-                .addLoreLine(ChatColor.GRAY + "Keep fishing to unlock more fish!")
-                .addLoreLine(ChatColor.GRAY + "Use /mfish quest to view quests");
-        
-        return builder.build();
+                .addLoreLine(messages.getMessageOr("gui.stats.fish-collected", "&bFish Collected: &f{amount}",
+                        "{amount}", String.valueOf(totalFish)))
+                .addLoreLine(messages.getMessageOr("gui.stats.quests-completed", "&aQuests Completed: &f{amount}",
+                        "{amount}", String.valueOf(completedQuests)))
+                .addLoreLine(messages.getMessageOr("gui.stats.quests-claimed", "&6Quests Claimed: &f{amount}",
+                        "{amount}", String.valueOf(claimedQuests)))
+                .addLoreLine("")
+                .addLoreLine(messages.getMessageOr("gui.stats.collection-footer1", "&7Keep fishing to unlock more fish!"))
+                .addLoreLine(messages.getMessageOr("gui.stats.collection-footer2", "&7Use /mfish quest to view quests"))
+                .build();
     }
     
     private String formatBiomeName(Biome biome) {

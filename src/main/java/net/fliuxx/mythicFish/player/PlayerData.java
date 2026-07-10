@@ -20,6 +20,8 @@ public class PlayerData {
     private final Set<String> completedQuests = ConcurrentHashMap.newKeySet();
     private final Set<String> claimedQuests = ConcurrentHashMap.newKeySet();
     private final Map<String, Integer> questProgress = new ConcurrentHashMap<>();
+    // Epoch seconds at which each quest was claimed; anchors the repeatable-quest cooldown.
+    private final Map<String, Long> questClaimedAt = new ConcurrentHashMap<>();
     private volatile int totalCatches;
     private volatile String name;
 
@@ -89,10 +91,31 @@ public class PlayerData {
 
     public void markQuestClaimed(String questId) {
         claimedQuests.add(questId);
+        questClaimedAt.put(questId, System.currentTimeMillis() / 1000L);
     }
 
     public int getClaimedQuestCount() {
         return claimedQuests.size();
+    }
+
+    /** Epoch seconds when the quest was claimed, or 0 if unknown/never claimed. */
+    public long getQuestClaimedAt(String questId) {
+        return questClaimedAt.getOrDefault(questId, 0L);
+    }
+
+    public void setQuestClaimedAt(String questId, long epochSeconds) {
+        questClaimedAt.put(questId, epochSeconds);
+    }
+
+    /**
+     * Reset a single quest's progression so it can be completed again (used by the repeatable-quest
+     * cooldown and by the admin reset command).
+     */
+    public void resetQuest(String questId) {
+        completedQuests.remove(questId);
+        claimedQuests.remove(questId);
+        questProgress.remove(questId);
+        questClaimedAt.remove(questId);
     }
 
     public int getQuestProgress(String questId) {
@@ -115,6 +138,7 @@ public class PlayerData {
         completedQuests.clear();
         claimedQuests.clear();
         questProgress.clear();
+        questClaimedAt.clear();
         totalCatches = 0;
     }
 }

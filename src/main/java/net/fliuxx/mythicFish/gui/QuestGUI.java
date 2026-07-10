@@ -41,6 +41,9 @@ public class QuestGUI implements Listener {
     }
     
     private void setupInventory() {
+        // Reset any repeatable quests whose cooldown has elapsed before rendering.
+        plugin.getQuestManager().applyQuestCooldowns(playerUUID, plugin.getPlayerDataManager().get(playerUUID));
+
         // Quest items
         List<Quest> allQuests = new ArrayList<>(plugin.getQuestManager().getAllQuests());
         int slot = 0;
@@ -68,83 +71,104 @@ public class QuestGUI implements Listener {
     }
     
     private ItemStack createPlayerStatsItem() {
-        ItemBuilder builder = new ItemBuilder(Material.PLAYER_HEAD)
-                .setDisplayName(ChatColor.GOLD + "" + ChatColor.BOLD + player.getName() + "'s Statistics");
-        
+        var messages = plugin.getMessagesManager();
+
         // Get player statistics from the in-memory cache
         PlayerData data = plugin.getPlayerDataManager().get(playerUUID);
         int totalFish = data != null ? data.getUniqueFishCount() : 0;
         int completedQuests = data != null ? data.getCompletedQuestCount() : 0;
         int claimedQuests = data != null ? data.getClaimedQuestCount() : 0;
-        
-        builder.addLoreLine("")
-                .addLoreLine(ChatColor.AQUA + "Fish Collected: " + ChatColor.WHITE + totalFish)
-                .addLoreLine(ChatColor.GREEN + "Quests Completed: " + ChatColor.WHITE + completedQuests)
-                .addLoreLine(ChatColor.GOLD + "Quests Claimed: " + ChatColor.WHITE + claimedQuests)
+
+        return new ItemBuilder(Material.PLAYER_HEAD)
+                .setDisplayName(messages.getMessageOr("gui.stats.title", "&6&l{player}'s Statistics",
+                        "{player}", player.getName()))
                 .addLoreLine("")
-                .addLoreLine(ChatColor.GRAY + "Keep fishing to complete more quests!");
-        
-        return builder.build();
+                .addLoreLine(messages.getMessageOr("gui.stats.fish-collected", "&bFish Collected: &f{amount}",
+                        "{amount}", String.valueOf(totalFish)))
+                .addLoreLine(messages.getMessageOr("gui.stats.quests-completed", "&aQuests Completed: &f{amount}",
+                        "{amount}", String.valueOf(completedQuests)))
+                .addLoreLine(messages.getMessageOr("gui.stats.quests-claimed", "&6Quests Claimed: &f{amount}",
+                        "{amount}", String.valueOf(claimedQuests)))
+                .addLoreLine("")
+                .addLoreLine(messages.getMessageOr("gui.stats.quest-footer", "&7Keep fishing to complete more quests!"))
+                .build();
     }
     
     private ItemStack createQuestItem(Quest quest) {
+        var messages = plugin.getMessagesManager();
         PlayerData data = plugin.getPlayerDataManager().get(playerUUID);
         boolean isCompleted = data != null && data.hasCompletedQuest(quest.getId());
         boolean isClaimed = data != null && data.hasClaimedQuest(quest.getId());
 
         String coloredName = ChatColor.translateAlternateColorCodes('&', quest.getGuiColor() + quest.getDisplayName());
-        
+        String required = String.valueOf(quest.getRequiredAmount());
+
         ItemBuilder builder = new ItemBuilder(quest.getGuiMaterial())
                 .setDisplayName(coloredName)
                 .addLoreLine("")
-                .addLoreLine(ChatColor.GRAY + quest.getDescription())
+                .addLoreLine(ChatColor.GRAY + ChatColor.translateAlternateColorCodes('&', quest.getDescription()))
                 .addLoreLine("");
-        
+
         // Add quest requirements
-        builder.addLoreLine(ChatColor.YELLOW + "Requirement:");
+        builder.addLoreLine(messages.getMessageOr("gui.quest.requirement", "&eRequirement:"));
         switch (quest.getType()) {
             case CATCH_TOTAL:
-                int currentTotal = data != null ? data.getTotalCatches() : 0;
-                builder.addLoreLine(ChatColor.WHITE + "Catch " + quest.getRequiredAmount() + " fish total")
-                        .addLoreLine(ChatColor.GRAY + "Progress: " + currentTotal + "/" + quest.getRequiredAmount());
+                // Repeatable CATCH_TOTAL tracks per-cycle progress; one-time uses lifetime total.
+                int currentTotal = data == null ? 0
+                        : (quest.isRepeatable() ? data.getQuestProgress(quest.getId()) : data.getTotalCatches());
+                builder.addLoreLine(messages.getMessageOr("gui.quest.req-total", "&fCatch {amount} fish total",
+                                "{amount}", required))
+                        .addLoreLine(messages.getMessageOr("gui.quest.progress", "&7Progress: {current}/{required}",
+                                "{current}", String.valueOf(currentTotal), "{required}", required));
                 break;
             case CATCH_SPECIFIC:
                 int specificProgress = data != null ? data.getQuestProgress(quest.getId()) : 0;
-                builder.addLoreLine(ChatColor.WHITE + "Catch " + quest.getRequiredAmount() + "x " + quest.getTarget().getValue())
-                        .addLoreLine(ChatColor.GRAY + "Progress: " + specificProgress + "/" + quest.getRequiredAmount());
+                builder.addLoreLine(messages.getMessageOr("gui.quest.req-specific", "&fCatch {amount}x {target}",
+                                "{amount}", required, "{target}", quest.getTarget().getValue()))
+                        .addLoreLine(messages.getMessageOr("gui.quest.progress", "&7Progress: {current}/{required}",
+                                "{current}", String.valueOf(specificProgress), "{required}", required));
                 break;
             case CATCH_RARITY:
                 try {
                     net.fliuxx.mythicFish.fish.FishRarity rarity = net.fliuxx.mythicFish.fish.FishRarity.valueOf(quest.getTarget().getValue().toUpperCase());
                     int rarityProgress = data != null ? data.getQuestProgress(quest.getId()) : 0;
-                    builder.addLoreLine(ChatColor.WHITE + "Catch " + quest.getRequiredAmount() + " " + rarity.getDisplayName() + " fish")
-                            .addLoreLine(ChatColor.GRAY + "Progress: " + rarityProgress + "/" + quest.getRequiredAmount());
+                    builder.addLoreLine(messages.getMessageOr("gui.quest.req-rarity", "&fCatch {amount} {rarity} &ffish",
+                                    "{amount}", required, "{rarity}", messages.getRarityName(rarity)))
+                            .addLoreLine(messages.getMessageOr("gui.quest.progress", "&7Progress: {current}/{required}",
+                                    "{current}", String.valueOf(rarityProgress), "{required}", required));
                 } catch (IllegalArgumentException e) {
-                    builder.addLoreLine(ChatColor.RED + "Invalid quest configuration");
+                    builder.addLoreLine(messages.getMessageOr("gui.quest.invalid", "&cInvalid quest configuration"));
                 }
                 break;
         }
-        
+
         builder.addLoreLine("");
-        
+
         // Add rewards info
         if (!quest.getRewardDisplay().isEmpty()) {
-            builder.addLoreLine(ChatColor.GOLD + "Rewards:");
+            builder.addLoreLine(messages.getMessageOr("gui.quest.rewards", "&6Rewards:"));
             for (String rewardDisplay : quest.getRewardDisplay()) {
                 builder.addLoreLine(ChatColor.translateAlternateColorCodes('&', rewardDisplay));
             }
             builder.addLoreLine("");
         }
-        
+
         // Add status
         if (isClaimed) {
-            builder.addLoreLine(ChatColor.GREEN + "✓ " + ChatColor.GRAY + "Completed & Claimed");
+            long remaining = plugin.getQuestManager().getRemainingCooldown(data, quest);
+            if (quest.isRepeatable() && remaining > 0) {
+                builder.addLoreLine(messages.getMessageOr("gui.quest.status-cooldown",
+                        "&e⏳ &7Available again in &e{time}",
+                        "{time}", messages.formatDuration(remaining)));
+            } else {
+                builder.addLoreLine(messages.getMessageOr("gui.quest.status-claimed", "&a✓ &7Completed & Claimed"));
+            }
         } else if (isCompleted) {
-            builder.addLoreLine(ChatColor.GREEN + "✓ " + ChatColor.GRAY + "Completed - Click to claim rewards!");
+            builder.addLoreLine(messages.getMessageOr("gui.quest.status-completed", "&a✓ &7Completed - Click to claim rewards!"));
         } else {
-            builder.addLoreLine(ChatColor.RED + "✗ " + ChatColor.GRAY + "Not completed");
+            builder.addLoreLine(messages.getMessageOr("gui.quest.status-incomplete", "&c✗ &7Not completed"));
         }
-        
+
         return builder.build();
     }
     

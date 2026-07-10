@@ -1,7 +1,7 @@
 
 # MythicFish
 
-![version](https://img.shields.io/badge/version-1.3.1-blue.svg)
+![version](https://img.shields.io/badge/version-1.3.2-blue.svg)
 ![MC version](https://img.shields.io/badge/MC-1.21.4--26.2-brightgreen.svg)
 
 A Minecraft plugin for Bukkit/Spigot servers that transforms the fishing experience with custom fish, collections, and quests.

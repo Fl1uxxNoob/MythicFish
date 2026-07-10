@@ -17,9 +17,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public class MythicFish extends JavaPlugin {
 
-    // bStats plugin id. Register the plugin at https://bstats.org to obtain it, then replace 0.
-    // While this is 0, metrics stay inactive (nothing is sent).
-    private static final int BSTATS_PLUGIN_ID = 0;
+    // bStats plugin id: https://bstats.org/plugin/bukkit/MythicFish/32521
+    private static final int BSTATS_PLUGIN_ID = 32521;
 
     private static MythicFish instance;
     private ConfigManager configManager;
