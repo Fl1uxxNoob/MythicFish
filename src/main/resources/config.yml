@@ -4,16 +4,46 @@
 settings:
   # Disable vanilla Minecraft fishing and only use custom fishing
   disable-vanilla-fishing: true
-  
+
   # Enable debug messages
   debug: false
+
+  # Run database queries off the main thread (recommended for performance).
+  # Set to false only for debugging.
+  async-database: true
 
 database:
   # Enable database storage for player fish collections
   enabled: true
-  
+
   # Path to the SQLite database file
   path: "plugins/MythicFish/data.db"
+
+# Server-wide announcements when a rare fish is caught
+announcements:
+  # Master toggle for rare-catch broadcasts
+  enabled: true
+  # Only announce the first time a player unlocks the fish (avoids spam)
+  only-first-catch: true
+  # Rarities that trigger a broadcast (COMMON, UNCOMMON, RARE, EPIC, LEGENDARY)
+  rarities:
+    - EPIC
+    - LEGENDARY
+  # Optional sound played to everyone (sound key, empty string = no sound)
+  # Example: "entity.player.levelup"
+  sound: "entity.player.levelup"
+
+# Leaderboard command (/mythicfish top)
+leaderboard:
+  enabled: true
+  # How many players to show
+  size: 10
+
+# PlaceholderAPI integration (requires the PlaceholderAPI plugin)
+# Placeholders: %mythicfish_total_catches%, %mythicfish_unique_fish%,
+#               %mythicfish_completed_quests%, %mythicfish_claimed_quests%
+placeholderapi:
+  enabled: true
 
 # Fish Configuration
 # Each fish has the following properties:

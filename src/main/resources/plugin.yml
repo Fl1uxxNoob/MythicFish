@@ -8,11 +8,12 @@ website: https://github.com/Fl1uxxNoob/MythicFish
 
 softdepend:
   - LuckPerms
+  - PlaceholderAPI
 
 commands:
   mythicfish:
     description: Main command for MythicFish plugin
-    usage: /mythicfish <collection|reload|help>
+    usage: /mythicfish <collection|quest|top|reload|help>
     aliases: [mfish, mythicf]
 
 permissions:
@@ -23,20 +24,25 @@ permissions:
       mythicfish.fish: true
       mythicfish.collection: true
       mythicfish.quest: true
+      mythicfish.top: true
       mythicfish.admin.*: true
-  
+
   mythicfish.fish:
     description: Allows player to fish custom fish
     default: true
-  
+
   mythicfish.collection:
     description: Allows player to view their fish collection
     default: true
-  
+
   mythicfish.quest:
     description: Allows player to view and claim quest rewards
     default: true
-  
+
+  mythicfish.top:
+    description: Allows viewing the fishing leaderboard
+    default: true
+
   mythicfish.admin.*:
     description: Gives access to all admin commands
     default: op

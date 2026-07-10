@@ -1,7 +1,7 @@
 
 # MythicFish
 
-![version](https://img.shields.io/badge/version-1.2.0-blue.svg)
+![version](https://img.shields.io/badge/version-1.3.0-blue.svg)
 ![MC version](https://img.shields.io/badge/MC-1.21.4--26.2-brightgreen.svg)
 
 A Minecraft plugin for Bukkit/Spigot servers that transforms the fishing experience with custom fish, collections, and quests.
@@ -35,6 +35,20 @@ MythicFish is a comprehensive plugin that replaces Minecraft's vanilla fishing s
 - **Flexible configuration**: YAML files for fish, messages, and settings
 - **Customizable messages**: All plugin messages are modifiable
 - **Live reloading**: Ability to reload configuration without server restart
+
+### 🏆 Leaderboard
+- **`/mythicfish top`**: Shows the top players ranked by total fish caught
+- **Configurable size**: Control how many players are shown
+
+### 📢 Rare Catch Announcements
+- **Server-wide broadcast**: Announce when a player unlocks a rare fish for the first time
+- **Configurable rarities**: Choose which rarities trigger an announcement (default: EPIC, LEGENDARY)
+- **Optional sound**: Play a sound to all online players on a rare catch
+
+### ⚡ Performance
+- **Asynchronous database**: All SQLite queries run off the main thread through a single worker,
+  with an in-memory cache serving gameplay reads — no database-induced lag during fishing or GUI usage
+- **PlaceholderAPI support**: Expose player stats as placeholders for scoreboards, tab lists, etc.
 
 ## 🚀 Installation
 
@@ -70,8 +84,16 @@ fish:
 ### Configuration Options
 
 - **`settings.disable-vanilla-fishing`**: Disables vanilla fishing (default: true)
+- **`settings.async-database`**: Runs database queries off the main thread (default: true, disable only for debugging)
 - **`database.enabled`**: Enables SQLite database (default: true)
 - **`database.path`**: Database file path (default: plugins/MythicFish/data.db)
+- **`announcements.enabled`**: Master toggle for rare-catch broadcasts (default: true)
+- **`announcements.only-first-catch`**: Only announce the first time a player unlocks the fish (default: true)
+- **`announcements.rarities`**: Rarities that trigger a broadcast (default: EPIC, LEGENDARY)
+- **`announcements.sound`**: Sound key played to everyone on a rare catch (empty = no sound)
+- **`leaderboard.enabled`**: Enables the `/mythicfish top` command (default: true)
+- **`leaderboard.size`**: How many players are shown (default: 10)
+- **`placeholderapi.enabled`**: Enables the PlaceholderAPI expansion if the plugin is installed (default: true)
 
 ## 🎮 Commands
 
@@ -81,6 +103,9 @@ fish:
 | `/mythicfish collection` | Opens collection GUI | `mythicfish.collection` |
 | `/mythicfish quest` | Manages quests | `mythicfish.quest` |
 | `/mythicfish quests` | Alias for quest command | `mythicfish.quest` |
+| `/mythicfish top` | Shows the fishing leaderboard | `mythicfish.top` |
+| `/mythicfish reload` | Reloads plugin configuration | `mythicfish.admin.reload` |
+| `/mythicfish admin` | Administrative commands | `mythicfish.admin` |
 
 ## 🔐 Permissions
 
@@ -89,8 +114,22 @@ fish:
 | `mythicfish.fish` | Allows fishing with MythicFish | `true` |
 | `mythicfish.collection` | Access to collection | `true` |
 | `mythicfish.quest` | Access to quests | `true` |
+| `mythicfish.top` | Access to the leaderboard | `true` |
 | `mythicfish.help` | View help | `true` |
 | `mythicfish.admin` | Administrative commands | `op` |
+| `mythicfish.admin.reload` | Reload plugin configuration | `op` |
+
+## 🔌 Optional Integrations
+
+Both are soft-dependencies — the plugin runs fine without them.
+
+- **[PlaceholderAPI](https://www.spigotmc.org/resources/placeholderapi.6245/)**: automatically hooked
+  if installed and `placeholderapi.enabled` is true. Available placeholders:
+  - `%mythicfish_total_catches%` — total fish caught (including repeats)
+  - `%mythicfish_unique_fish%` — number of distinct fish collected
+  - `%mythicfish_completed_quests%` — quests completed
+  - `%mythicfish_claimed_quests%` — quests claimed
+- **[LuckPerms](https://luckperms.net/)**: supported for permission management, not required.
 
 ## 🗃️ Database
 
@@ -100,6 +139,10 @@ The plugin uses SQLite to store:
 - **Timestamps**: When each fish was caught
 - **Biomes**: In which biome the fish was caught
 - **Quest progress**: Quest status for each player
+- **Total catches**: Used by the leaderboard and `CATCH_TOTAL` quests
+
+All queries run asynchronously through a single worker thread; an in-memory cache per online player
+serves gameplay reads so fishing and GUIs never wait on disk I/O.
 
 ### Database Structure
 
@@ -111,6 +154,12 @@ CREATE TABLE player_fish (
     caught_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     biome TEXT NOT NULL,
     UNIQUE(player_uuid, fish_id)
+);
+
+CREATE TABLE player_stats (
+    player_uuid TEXT PRIMARY KEY,
+    name TEXT,
+    total_catches INTEGER DEFAULT 0
 );
 ```
 

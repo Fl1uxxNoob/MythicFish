@@ -6,8 +6,11 @@ import net.fliuxx.mythicFish.config.MessagesManager;
 import net.fliuxx.mythicFish.database.DatabaseManager;
 import net.fliuxx.mythicFish.fish.FishManager;
 import net.fliuxx.mythicFish.listeners.FishingListener;
+import net.fliuxx.mythicFish.listeners.PlayerConnectionListener;
 import net.fliuxx.mythicFish.player.PlayerDataManager;
 import net.fliuxx.mythicFish.quest.QuestManager;
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class MythicFish extends JavaPlugin {
@@ -49,10 +52,23 @@ public class MythicFish extends JavaPlugin {
         
         // Register events
         getServer().getPluginManager().registerEvents(new FishingListener(this), this);
-        
+        getServer().getPluginManager().registerEvents(new PlayerConnectionListener(this), this);
+
         // Register commands
         getCommand("mythicfish").setExecutor(new MythicFishCommand(this));
-        
+
+        // Register PlaceholderAPI expansion if the plugin is present and enabled
+        if (configManager.isPlaceholderApiEnabled()
+                && Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null) {
+            new net.fliuxx.mythicFish.hook.MythicFishExpansion(this).register();
+            getLogger().info("Hooked into PlaceholderAPI.");
+        }
+
+        // Preload data for players already online (e.g. after a /reload)
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            playerDataManager.load(player.getUniqueId(), player.getName());
+        }
+
         getLogger().info("MythicFish plugin has been enabled successfully!");
     }
     

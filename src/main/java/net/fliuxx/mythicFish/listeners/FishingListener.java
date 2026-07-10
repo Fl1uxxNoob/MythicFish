@@ -2,16 +2,20 @@ package net.fliuxx.mythicFish.listeners;
 
 import net.fliuxx.mythicFish.MythicFish;
 import net.fliuxx.mythicFish.fish.Fish;
+import net.fliuxx.mythicFish.player.PlayerData;
 import net.fliuxx.mythicFish.utils.ItemBuilder;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.block.Biome;
-import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.inventory.ItemStack;
+
+import java.util.List;
+import java.util.UUID;
 
 public class FishingListener implements Listener {
 
@@ -69,14 +73,19 @@ public class FishingListener implements Listener {
         // Create custom fish item
         ItemStack fishItem = createFishItem(caughtFish);
 
-        // Add fish to player's collection and update statistics
-        boolean isNewFish = !plugin.getDatabaseManager().hasPlayerCaughtFish(player.getUniqueId(), caughtFish.getId());
+        UUID uuid = player.getUniqueId();
+        PlayerData data = plugin.getPlayerDataManager().get(uuid);
 
-        // Always add the catch to database for statistics tracking and update cache
-        plugin.getPlayerDataManager().addFishToPlayer(player.getUniqueId(), caughtFish.getId(), biome.getKey().toString());
+        // Determine novelty from the in-memory cache (no DB read on the main thread)
+        boolean isNewFish = data == null || !data.hasCaughtFish(caughtFish.getId());
 
-        // Track total catches (counts every catch, including repeats) for CATCH_TOTAL quests
-        plugin.getDatabaseManager().incrementTotalCatches(player.getUniqueId());
+        // Update the cache immediately, then persist asynchronously
+        if (data != null) {
+            data.addCaughtFish(caughtFish.getId());
+            data.incrementTotalCatches();
+        }
+        plugin.getDatabaseManager().addFishToPlayer(uuid, caughtFish.getId(), biome.getKey().toString());
+        plugin.getDatabaseManager().incrementTotalCatches(uuid, player.getName());
 
         if (isNewFish) {
             player.sendMessage(plugin.getMessagesManager().getMessage("new-fish-caught",
@@ -87,6 +96,9 @@ public class FishingListener implements Listener {
                     "{fish}", caughtFish.getDisplayName(),
                     "{rarity}", caughtFish.getRarity().getColoredDisplayName()));
         }
+
+        // Server-wide announcement for rare catches
+        announceRareCatch(player, caughtFish, isNewFish);
 
         // Check and progress quests on every catch (repeats count toward totals)
         plugin.getQuestManager().checkQuestCompletion(player, caughtFish);
@@ -100,6 +112,33 @@ public class FishingListener implements Listener {
 
         // Give experience
         player.giveExp(1 + (int)(caughtFish.getRarity().ordinal() * 2));
+    }
+
+    private void announceRareCatch(Player player, Fish fish, boolean isNewFish) {
+        if (!plugin.getConfigManager().areAnnouncementsEnabled()) {
+            return;
+        }
+        if (plugin.getConfigManager().isAnnounceOnlyFirstCatch() && !isNewFish) {
+            return;
+        }
+        List<String> rarities = plugin.getConfigManager().getAnnouncementRarities();
+        if (!rarities.contains(fish.getRarity().name())) {
+            return;
+        }
+
+        String message = plugin.getMessagesManager().getMessage("announcement-rare-catch",
+                "{player}", player.getName(),
+                "{fish}", fish.getDisplayName(),
+                "{rarity}", fish.getRarity().getColoredDisplayName());
+        Bukkit.broadcastMessage(message);
+
+        // Optional broadcast sound, referenced by its sound key (e.g. "entity.player.levelup")
+        String soundKey = plugin.getConfigManager().getAnnouncementSound();
+        if (soundKey != null && !soundKey.isEmpty()) {
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                online.playSound(online.getLocation(), soundKey, 1.0f, 1.0f);
+            }
+        }
     }
 
     private ItemStack createFishItem(Fish fish) {

@@ -13,6 +13,15 @@ new-fish-caught: "&a&lNEW FISH! &7You caught a {rarity} &7{fish}&7!"
 fish-caught: "&7You caught a {rarity} &7{fish}&7!"
 no-fish-in-biome: "&cNo fish can be caught in this biome!"
 
+# Rare-catch Announcement (broadcast to everyone)
+announcement-rare-catch: "&6&l✦ &e{player} &7just caught a {rarity} &7{fish}&7!"
+
+# Leaderboard (/mythicfish top)
+leaderboard-header: "&6&l=== Top Fishers (Total Catches) ==="
+leaderboard-line: "&e#{rank} &f{player} &7- &b{catches} &7catches"
+leaderboard-empty: "&7No fishing data yet. Be the first to cast a line!"
+leaderboard-disabled: "&cThe leaderboard is currently disabled."
+
 # Collection GUI
 collection-gui-title: "&6&lFish Collection"
 
@@ -44,6 +53,7 @@ help-message: |
   &6&l=== MythicFish Help ===
   &e/mythicfish collection &7- View your fish collection
   &e/mythicfish quest &7- View and claim quest rewards
+  &e/mythicfish top &7- View the fishing leaderboard
   &e/mythicfish reload &7- Reload plugin configuration (Admin)
   &e/mythicfish admin &7- Admin commands (Admin)
   &e/mythicfish help &7- Show this help message

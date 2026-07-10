@@ -1,16 +1,37 @@
 package net.fliuxx.mythicFish.database;
 
 import net.fliuxx.mythicFish.MythicFish;
-import org.bukkit.entity.Player;
+import net.fliuxx.mythicFish.player.PlayerData;
 
 import java.io.File;
 import java.sql.*;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
+/**
+ * SQLite persistence layer.
+ * <p>
+ * All SQL runs through a single-threaded {@link ExecutorService} so the single (non thread-safe)
+ * connection is never touched concurrently. Writes are fire-and-forget; reads return a
+ * {@link CompletableFuture}. Gameplay reads are served from the in-memory player cache instead of
+ * this class, so the only reads here are the per-player load and the leaderboard aggregate.
+ * <p>
+ * When {@code settings.async-database} is {@code false} every operation runs inline on the calling
+ * thread (original behaviour, useful for debugging).
+ */
 public class DatabaseManager {
+
+    /** A single leaderboard row. */
+    public record TopEntry(String name, int catches) {}
 
     private final MythicFish plugin;
     private Connection connection;
+    private ExecutorService executor;
+    private boolean async;
 
     public DatabaseManager(MythicFish plugin) {
         this.plugin = plugin;
@@ -31,6 +52,13 @@ public class DatabaseManager {
 
             connection = DriverManager.getConnection("jdbc:sqlite:" + path);
             createTables();
+
+            this.async = plugin.getConfigManager().isAsyncDatabase();
+            this.executor = Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "MythicFish-DB");
+                t.setDaemon(true);
+                return t;
+            });
             return true;
         } catch (SQLException e) {
             plugin.getLogger().severe("Failed to initialize database: " + e.getMessage());
@@ -67,6 +95,7 @@ public class DatabaseManager {
         String createPlayerStatsTable = """
             CREATE TABLE IF NOT EXISTS player_stats (
                 player_uuid TEXT PRIMARY KEY,
+                name TEXT,
                 total_catches INTEGER DEFAULT 0
             )
         """;
@@ -76,234 +105,166 @@ public class DatabaseManager {
             stmt.execute(createPlayerQuestsTable);
             stmt.execute(createPlayerStatsTable);
 
-            // Add progress column if it doesn't exist (for existing databases)
-            try {
-                stmt.execute("ALTER TABLE player_quests ADD COLUMN progress INTEGER DEFAULT 0");
-            } catch (SQLException e) {
-                // Column already exists, ignore
+            // Schema migrations for databases created by older versions (each ignored if already applied)
+            for (String migration : new String[]{
+                    "ALTER TABLE player_quests ADD COLUMN progress INTEGER DEFAULT 0",
+                    "ALTER TABLE player_quests ADD COLUMN completed BOOLEAN DEFAULT FALSE",
+                    "ALTER TABLE player_stats ADD COLUMN name TEXT"
+            }) {
+                try {
+                    stmt.execute(migration);
+                } catch (SQLException ignored) {
+                    // Column already exists
+                }
             }
 
-            // Add completed column if it doesn't exist
-            try {
-                stmt.execute("ALTER TABLE player_quests ADD COLUMN completed BOOLEAN DEFAULT FALSE");
-            } catch (SQLException e) {
-                // Column already exists, ignore
-            }
+            // Speeds up the leaderboard ORDER BY on large databases
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_stats_catches ON player_stats(total_catches)");
         }
     }
+
+    // --- Async dispatch helpers ---
+
+    private void write(Runnable raw) {
+        if (async && executor != null && !executor.isShutdown()) {
+            executor.execute(raw);
+        } else {
+            raw.run();
+        }
+    }
+
+    private <T> CompletableFuture<T> read(Supplier<T> raw) {
+        if (async && executor != null && !executor.isShutdown()) {
+            return CompletableFuture.supplyAsync(raw, executor);
+        }
+        return CompletableFuture.completedFuture(raw.get());
+    }
+
+    // --- Loading & leaderboard (the only reads that hit the DB) ---
+
+    /**
+     * Load a full progression snapshot for one player. Runs on the DB thread.
+     */
+    public CompletableFuture<PlayerData> loadPlayerData(UUID playerUUID) {
+        return read(() -> {
+            PlayerData data = new PlayerData();
+            String uuid = playerUUID.toString();
+
+            String fishSql = "SELECT fish_id FROM player_fish WHERE player_uuid = ?";
+            try (PreparedStatement pstmt = connection.prepareStatement(fishSql)) {
+                pstmt.setString(1, uuid);
+                ResultSet rs = pstmt.executeQuery();
+                while (rs.next()) {
+                    data.addCaughtFish(rs.getString("fish_id"));
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Failed to load player fish: " + e.getMessage());
+            }
+
+            String statsSql = "SELECT total_catches FROM player_stats WHERE player_uuid = ?";
+            try (PreparedStatement pstmt = connection.prepareStatement(statsSql)) {
+                pstmt.setString(1, uuid);
+                ResultSet rs = pstmt.executeQuery();
+                if (rs.next()) {
+                    data.setTotalCatches(rs.getInt("total_catches"));
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Failed to load player stats: " + e.getMessage());
+            }
+
+            String questSql = "SELECT quest_id, progress, completed, claimed FROM player_quests WHERE player_uuid = ?";
+            try (PreparedStatement pstmt = connection.prepareStatement(questSql)) {
+                pstmt.setString(1, uuid);
+                ResultSet rs = pstmt.executeQuery();
+                while (rs.next()) {
+                    String questId = rs.getString("quest_id");
+                    data.setQuestProgress(questId, rs.getInt("progress"));
+                    if (rs.getBoolean("completed")) {
+                        data.markQuestCompleted(questId);
+                    }
+                    if (rs.getBoolean("claimed")) {
+                        data.markQuestClaimed(questId);
+                    }
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Failed to load player quests: " + e.getMessage());
+            }
+
+            return data;
+        });
+    }
+
+    public CompletableFuture<List<TopEntry>> getTopCatches(int limit) {
+        return read(() -> {
+            List<TopEntry> top = new ArrayList<>();
+            String sql = "SELECT name, total_catches FROM player_stats " +
+                        "WHERE name IS NOT NULL ORDER BY total_catches DESC LIMIT ?";
+            try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+                pstmt.setInt(1, limit);
+                ResultSet rs = pstmt.executeQuery();
+                while (rs.next()) {
+                    top.add(new TopEntry(rs.getString("name"), rs.getInt("total_catches")));
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Failed to load leaderboard: " + e.getMessage());
+            }
+            return top;
+        });
+    }
+
+    // --- Writes (fire-and-forget) ---
 
     public void addFishToPlayer(UUID playerUUID, String fishId, String biome) {
-        String sql = "INSERT OR IGNORE INTO player_fish (player_uuid, fish_id, biome) VALUES (?, ?, ?)";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, playerUUID.toString());
-            pstmt.setString(2, fishId);
-            pstmt.setString(3, biome);
-            pstmt.executeUpdate();
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to add fish to player: " + e.getMessage());
-        }
-    }
-
-    public Set<String> getPlayerFish(UUID playerUUID) {
-        Set<String> fishIds = new HashSet<>();
-        String sql = "SELECT fish_id FROM player_fish WHERE player_uuid = ?";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, playerUUID.toString());
-            ResultSet rs = pstmt.executeQuery();
-
-            while (rs.next()) {
-                fishIds.add(rs.getString("fish_id"));
+        write(() -> {
+            String sql = "INSERT OR IGNORE INTO player_fish (player_uuid, fish_id, biome) VALUES (?, ?, ?)";
+            try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+                pstmt.setString(1, playerUUID.toString());
+                pstmt.setString(2, fishId);
+                pstmt.setString(3, biome);
+                pstmt.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Failed to add fish to player: " + e.getMessage());
             }
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to get player fish: " + e.getMessage());
-        }
-
-        return fishIds;
+        });
     }
 
-    public boolean hasPlayerCaughtFish(UUID playerUUID, String fishId) {
-        String sql = "SELECT 1 FROM player_fish WHERE player_uuid = ? AND fish_id = ?";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, playerUUID.toString());
-            pstmt.setString(2, fishId);
-            ResultSet rs = pstmt.executeQuery();
-            return rs.next();
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to check if player caught fish: " + e.getMessage());
-            return false;
-        }
-    }
-
-    // Player statistics methods
-    public void incrementTotalCatches(UUID playerUUID) {
-        String sql = "INSERT INTO player_stats (player_uuid, total_catches) VALUES (?, 1) " +
-                    "ON CONFLICT(player_uuid) DO UPDATE SET total_catches = total_catches + 1";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, playerUUID.toString());
-            pstmt.executeUpdate();
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to increment total catches: " + e.getMessage());
-        }
-    }
-
-    public int getTotalCatches(UUID playerUUID) {
-        String sql = "SELECT total_catches FROM player_stats WHERE player_uuid = ?";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, playerUUID.toString());
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                return rs.getInt("total_catches");
+    public void incrementTotalCatches(UUID playerUUID, String name) {
+        write(() -> {
+            String sql = "INSERT INTO player_stats (player_uuid, name, total_catches) VALUES (?, ?, 1) " +
+                        "ON CONFLICT(player_uuid) DO UPDATE SET total_catches = total_catches + 1, name = excluded.name";
+            try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+                pstmt.setString(1, playerUUID.toString());
+                pstmt.setString(2, name);
+                pstmt.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Failed to increment total catches: " + e.getMessage());
             }
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to get total catches: " + e.getMessage());
-        }
-        return 0;
-    }
-
-    // Quest-related methods
-    public boolean hasPlayerCompletedQuest(UUID playerUUID, String questId) {
-        String sql = "SELECT completed FROM player_quests WHERE player_uuid = ? AND quest_id = ?";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, playerUUID.toString());
-            pstmt.setString(2, questId);
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                return rs.getBoolean("completed");
-            }
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to check completed quest: " + e.getMessage());
-        }
-        return false;
-    }
-
-    public boolean hasPlayerClaimedQuest(UUID playerUUID, String questId) {
-        String sql = "SELECT claimed FROM player_quests WHERE player_uuid = ? AND quest_id = ?";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, playerUUID.toString());
-            pstmt.setString(2, questId);
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                return rs.getBoolean("claimed");
-            }
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to check claimed quest: " + e.getMessage());
-        }
-        return false;
+        });
     }
 
     public void setQuestClaimed(UUID playerUUID, String questId) {
-        String sql = "UPDATE player_quests SET claimed = TRUE, claimed_at = CURRENT_TIMESTAMP WHERE player_uuid = ? AND quest_id = ?";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, playerUUID.toString());
-            pstmt.setString(2, questId);
-            pstmt.executeUpdate();
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to set quest as claimed: " + e.getMessage());
-        }
-    }
-
-    public int getCompletedQuestCount(UUID playerUUID) {
-        String sql = "SELECT COUNT(*) FROM player_quests WHERE player_uuid = ? AND completed = 1";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, playerUUID.toString());
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                return rs.getInt(1);
+        write(() -> {
+            String sql = "UPDATE player_quests SET claimed = TRUE, claimed_at = CURRENT_TIMESTAMP WHERE player_uuid = ? AND quest_id = ?";
+            try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+                pstmt.setString(1, playerUUID.toString());
+                pstmt.setString(2, questId);
+                pstmt.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Failed to set quest as claimed: " + e.getMessage());
             }
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to get completed quest count: " + e.getMessage());
-        }
-        return 0;
-    }
-
-    public int getClaimedQuestCount(UUID playerUUID) {
-        String sql = "SELECT COUNT(*) FROM player_quests WHERE player_uuid = ? AND claimed = 1";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, playerUUID.toString());
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                return rs.getInt(1);
-            }
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to get claimed quest count: " + e.getMessage());
-        }
-        return 0;
-    }
-
-    public int getPlayerFishCountByRarity(UUID playerUUID, net.fliuxx.mythicFish.fish.FishRarity rarity) {
-        // Rarity is defined in config (not stored in the DB), so we resolve it in memory:
-        // fetch the player's caught fish and count those matching the requested rarity.
-        Set<String> playerFish = getPlayerFish(playerUUID);
-        int count = 0;
-
-        for (String fishId : playerFish) {
-            net.fliuxx.mythicFish.fish.Fish fish = plugin.getFishManager().getFish(fishId);
-            if (fish != null && fish.getRarity() == rarity) {
-                count++;
-            }
-        }
-
-        return count;
-    }
-
-    // Admin methods
-    public void removeFishFromPlayer(UUID playerUUID, String fishId) {
-        String sql = "DELETE FROM player_fish WHERE player_uuid = ? AND fish_id = ?";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, playerUUID.toString());
-            pstmt.setString(2, fishId);
-            pstmt.executeUpdate();
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to remove fish from player: " + e.getMessage());
-        }
-    }
-
-    public void resetPlayerCollection(UUID playerUUID) {
-        String deleteFishSql = "DELETE FROM player_fish WHERE player_uuid = ?";
-        String deleteQuestsSql = "DELETE FROM player_quests WHERE player_uuid = ?";
-        String deleteStatsSql = "DELETE FROM player_stats WHERE player_uuid = ?";
-
-        try (PreparedStatement fishStmt = connection.prepareStatement(deleteFishSql);
-             PreparedStatement questStmt = connection.prepareStatement(deleteQuestsSql);
-             PreparedStatement statsStmt = connection.prepareStatement(deleteStatsSql)) {
-
-            fishStmt.setString(1, playerUUID.toString());
-            questStmt.setString(1, playerUUID.toString());
-            statsStmt.setString(1, playerUUID.toString());
-
-            fishStmt.executeUpdate();
-            questStmt.executeUpdate();
-            statsStmt.executeUpdate();
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to reset player collection: " + e.getMessage());
-        }
+        });
     }
 
     public void updateQuestProgress(UUID playerUUID, String questId, int increment) {
-        String selectSql = "SELECT progress FROM player_quests WHERE player_uuid = ? AND quest_id = ?";
-        String insertSql = "INSERT INTO player_quests (player_uuid, quest_id, progress, completed, claimed) VALUES (?, ?, ?, FALSE, FALSE)";
-        String updateSql = "UPDATE player_quests SET progress = progress + ? WHERE player_uuid = ? AND quest_id = ?";
-
-        try {
-            // Check if quest progress record exists
+        write(() -> {
+            String selectSql = "SELECT progress FROM player_quests WHERE player_uuid = ? AND quest_id = ?";
+            String insertSql = "INSERT INTO player_quests (player_uuid, quest_id, progress, completed, claimed) VALUES (?, ?, ?, FALSE, FALSE)";
+            String updateSql = "UPDATE player_quests SET progress = progress + ? WHERE player_uuid = ? AND quest_id = ?";
             try (PreparedStatement selectStmt = connection.prepareStatement(selectSql)) {
                 selectStmt.setString(1, playerUUID.toString());
                 selectStmt.setString(2, questId);
                 ResultSet rs = selectStmt.executeQuery();
-
                 if (rs.next()) {
-                    // Update existing progress
                     try (PreparedStatement updateStmt = connection.prepareStatement(updateSql)) {
                         updateStmt.setInt(1, increment);
                         updateStmt.setString(2, playerUUID.toString());
@@ -311,7 +272,6 @@ public class DatabaseManager {
                         updateStmt.executeUpdate();
                     }
                 } else {
-                    // Create new progress record
                     try (PreparedStatement insertStmt = connection.prepareStatement(insertSql)) {
                         insertStmt.setString(1, playerUUID.toString());
                         insertStmt.setString(2, questId);
@@ -319,41 +279,77 @@ public class DatabaseManager {
                         insertStmt.executeUpdate();
                     }
                 }
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Failed to update quest progress: " + e.getMessage());
             }
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to update quest progress: " + e.getMessage());
-        }
-    }
-
-    public int getQuestProgress(UUID playerUUID, String questId) {
-        String sql = "SELECT progress FROM player_quests WHERE player_uuid = ? AND quest_id = ?";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, playerUUID.toString());
-            pstmt.setString(2, questId);
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                return rs.getInt("progress");
-            }
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to get quest progress: " + e.getMessage());
-        }
-        return 0;
+        });
     }
 
     public void markQuestCompleted(UUID playerUUID, String questId) {
-        String sql = "UPDATE player_quests SET completed = TRUE WHERE player_uuid = ? AND quest_id = ?";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, playerUUID.toString());
-            pstmt.setString(2, questId);
-            pstmt.executeUpdate();
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to mark quest as completed: " + e.getMessage());
-        }
+        write(() -> {
+            // Ensure a row exists (a CATCH_TOTAL quest may complete before any progress row is written)
+            String upsertSql = "INSERT INTO player_quests (player_uuid, quest_id, completed, completed_at) " +
+                        "VALUES (?, ?, TRUE, CURRENT_TIMESTAMP) " +
+                        "ON CONFLICT(player_uuid, quest_id) DO UPDATE SET completed = TRUE, completed_at = CURRENT_TIMESTAMP";
+            try (PreparedStatement pstmt = connection.prepareStatement(upsertSql)) {
+                pstmt.setString(1, playerUUID.toString());
+                pstmt.setString(2, questId);
+                pstmt.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Failed to mark quest as completed: " + e.getMessage());
+            }
+        });
     }
 
+    // --- Admin writes ---
+
+    public void removeFishFromPlayer(UUID playerUUID, String fishId) {
+        write(() -> {
+            String sql = "DELETE FROM player_fish WHERE player_uuid = ? AND fish_id = ?";
+            try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+                pstmt.setString(1, playerUUID.toString());
+                pstmt.setString(2, fishId);
+                pstmt.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Failed to remove fish from player: " + e.getMessage());
+            }
+        });
+    }
+
+    public void resetPlayerCollection(UUID playerUUID) {
+        write(() -> {
+            String uuid = playerUUID.toString();
+            try (PreparedStatement fishStmt = connection.prepareStatement("DELETE FROM player_fish WHERE player_uuid = ?");
+                 PreparedStatement questStmt = connection.prepareStatement("DELETE FROM player_quests WHERE player_uuid = ?");
+                 PreparedStatement statsStmt = connection.prepareStatement("DELETE FROM player_stats WHERE player_uuid = ?")) {
+                fishStmt.setString(1, uuid);
+                questStmt.setString(1, uuid);
+                statsStmt.setString(1, uuid);
+                fishStmt.executeUpdate();
+                questStmt.executeUpdate();
+                statsStmt.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Failed to reset player collection: " + e.getMessage());
+            }
+        });
+    }
+
+    // --- Lifecycle ---
+
     public void closeConnection() {
+        // Drain pending async writes before closing the connection so nothing is lost on shutdown.
+        if (executor != null) {
+            executor.shutdown();
+            try {
+                if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+                    plugin.getLogger().warning("Database tasks did not finish within 10s; forcing shutdown.");
+                    executor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                executor.shutdownNow();
+            }
+        }
         try {
             if (connection != null && !connection.isClosed()) {
                 connection.close();

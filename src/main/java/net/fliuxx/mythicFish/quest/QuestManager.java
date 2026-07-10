@@ -3,6 +3,7 @@ package net.fliuxx.mythicFish.quest;
 import net.fliuxx.mythicFish.MythicFish;
 import net.fliuxx.mythicFish.fish.Fish;
 import net.fliuxx.mythicFish.fish.FishRarity;
+import net.fliuxx.mythicFish.player.PlayerData;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -70,9 +71,13 @@ public class QuestManager {
 
     public void checkQuestCompletion(Player player, Fish caughtFish) {
         UUID playerUUID = player.getUniqueId();
+        PlayerData data = plugin.getPlayerDataManager().get(playerUUID);
+        if (data == null) {
+            return;
+        }
 
         for (Quest quest : quests.values()) {
-            if (plugin.getDatabaseManager().hasPlayerCompletedQuest(playerUUID, quest.getId())) {
+            if (data.hasCompletedQuest(quest.getId())) {
                 continue;
             }
 
@@ -80,16 +85,14 @@ public class QuestManager {
 
             switch (quest.getType()) {
                 case CATCH_TOTAL:
-                    // Total catches counts every catch (repeats included), tracked in player_stats
-                    int totalCatches = plugin.getDatabaseManager().getTotalCatches(playerUUID);
-                    shouldComplete = totalCatches >= quest.getRequiredAmount();
+                    // Total catches counts every catch (repeats included), tracked in the cache
+                    shouldComplete = data.getTotalCatches() >= quest.getRequiredAmount();
                     break;
 
                 case CATCH_SPECIFIC:
                     if (caughtFish.getId().equals(quest.getTarget().getValue())) {
-                        // Only increment for specific fish catches
+                        int specificCount = data.incrementQuestProgress(quest.getId());
                         plugin.getDatabaseManager().updateQuestProgress(playerUUID, quest.getId(), 1);
-                        int specificCount = plugin.getDatabaseManager().getQuestProgress(playerUUID, quest.getId());
                         shouldComplete = specificCount >= quest.getRequiredAmount();
                     }
                     break;
@@ -98,8 +101,8 @@ public class QuestManager {
                     try {
                         FishRarity targetRarity = FishRarity.valueOf(quest.getTarget().getValue().toUpperCase());
                         if (caughtFish.getRarity() == targetRarity) {
+                            int rarityProgress = data.incrementQuestProgress(quest.getId());
                             plugin.getDatabaseManager().updateQuestProgress(playerUUID, quest.getId(), 1);
-                            int rarityProgress = plugin.getDatabaseManager().getQuestProgress(playerUUID, quest.getId());
                             shouldComplete = rarityProgress >= quest.getRequiredAmount();
                         }
                     } catch (IllegalArgumentException e) {
@@ -108,25 +111,24 @@ public class QuestManager {
                     break;
             }
 
-            if (shouldComplete) {
-                // Double-check if quest is already completed to prevent duplicate completions
-                if (!plugin.getDatabaseManager().hasPlayerCompletedQuest(playerUUID, quest.getId())) {
-                    plugin.getDatabaseManager().markQuestCompleted(playerUUID, quest.getId());
+            if (shouldComplete && !data.hasCompletedQuest(quest.getId())) {
+                data.markQuestCompleted(quest.getId());
+                plugin.getDatabaseManager().markQuestCompleted(playerUUID, quest.getId());
 
-                    String message = plugin.getMessagesManager().getMessage("quest-completed",
-                            "{quest}", quest.getDisplayName());
-                    player.sendMessage(message);
-                }
+                String message = plugin.getMessagesManager().getMessage("quest-completed",
+                        "{quest}", quest.getDisplayName());
+                player.sendMessage(message);
             }
         }
     }
 
     public void giveQuestRewards(Player player, Quest quest) {
-        if (!plugin.getDatabaseManager().hasPlayerCompletedQuest(player.getUniqueId(), quest.getId())) {
+        PlayerData data = plugin.getPlayerDataManager().get(player.getUniqueId());
+        if (data == null || !data.hasCompletedQuest(quest.getId())) {
             return;
         }
 
-        if (plugin.getDatabaseManager().hasPlayerClaimedQuest(player.getUniqueId(), quest.getId())) {
+        if (data.hasClaimedQuest(quest.getId())) {
             player.sendMessage(plugin.getMessagesManager().getMessage("quest-already-claimed"));
             return;
         }
@@ -136,6 +138,7 @@ public class QuestManager {
             Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
         }
 
+        data.markQuestClaimed(quest.getId());
         plugin.getDatabaseManager().setQuestClaimed(player.getUniqueId(), quest.getId());
 
         // Send custom reward message instead of generic one
@@ -143,7 +146,7 @@ public class QuestManager {
         if (rewardMessage != null && !rewardMessage.isEmpty()) {
             player.sendMessage(ChatColor.translateAlternateColorCodes('&', rewardMessage));
         } else {
-            player.sendMessage(plugin.getMessagesManager().getMessage("quest-rewards-claimed", 
+            player.sendMessage(plugin.getMessagesManager().getMessage("quest-rewards-claimed",
                     "{quest}", quest.getDisplayName()));
         }
     }

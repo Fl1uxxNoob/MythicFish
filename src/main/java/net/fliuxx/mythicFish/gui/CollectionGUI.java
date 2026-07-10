@@ -2,6 +2,7 @@ package net.fliuxx.mythicFish.gui;
 
 import net.fliuxx.mythicFish.MythicFish;
 import net.fliuxx.mythicFish.fish.Fish;
+import net.fliuxx.mythicFish.player.PlayerData;
 import net.fliuxx.mythicFish.utils.ItemBuilder;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -29,7 +30,7 @@ public class CollectionGUI implements Listener {
     public CollectionGUI(MythicFish plugin, Player player) {
         this.plugin = plugin;
         this.player = player;
-        this.playerFish = plugin.getDatabaseManager().getPlayerFish(player.getUniqueId());
+        this.playerFish = plugin.getPlayerDataManager().getPlayerFish(player.getUniqueId());
         
         String title = ChatColor.translateAlternateColorCodes('&', 
                 plugin.getMessagesManager().getMessage("collection-gui-title"));
@@ -128,15 +129,11 @@ public class CollectionGUI implements Listener {
         ItemBuilder builder = new ItemBuilder(Material.PLAYER_HEAD)
                 .setDisplayName(ChatColor.GOLD + "" + ChatColor.BOLD + player.getName() + "'s Statistics");
         
-        // Get player statistics - refresh cache first to ensure up-to-date data
-        plugin.getPlayerDataManager().invalidateCache(player.getUniqueId());
-        
-        // Get unique fish count (collection size)
-        Set<String> uniqueFish = plugin.getDatabaseManager().getPlayerFish(player.getUniqueId());
-        int totalFish = uniqueFish.size();
-        
-        int completedQuests = plugin.getDatabaseManager().getCompletedQuestCount(player.getUniqueId());
-        int claimedQuests = plugin.getDatabaseManager().getClaimedQuestCount(player.getUniqueId());
+        // Get player statistics from the in-memory cache
+        PlayerData data = plugin.getPlayerDataManager().get(player.getUniqueId());
+        int totalFish = data != null ? data.getUniqueFishCount() : 0;
+        int completedQuests = data != null ? data.getCompletedQuestCount() : 0;
+        int claimedQuests = data != null ? data.getClaimedQuestCount() : 0;
         
         builder.addLoreLine("")
                 .addLoreLine(ChatColor.AQUA + "Fish Collected: " + ChatColor.WHITE + totalFish)

@@ -1,6 +1,7 @@
 package net.fliuxx.mythicFish.gui;
 
 import net.fliuxx.mythicFish.MythicFish;
+import net.fliuxx.mythicFish.player.PlayerData;
 import net.fliuxx.mythicFish.quest.Quest;
 import net.fliuxx.mythicFish.utils.ItemBuilder;
 import org.bukkit.Bukkit;
@@ -70,10 +71,11 @@ public class QuestGUI implements Listener {
         ItemBuilder builder = new ItemBuilder(Material.PLAYER_HEAD)
                 .setDisplayName(ChatColor.GOLD + "" + ChatColor.BOLD + player.getName() + "'s Statistics");
         
-        // Get player statistics
-        int totalFish = plugin.getPlayerDataManager().getTotalFishCount(playerUUID);
-        int completedQuests = plugin.getDatabaseManager().getCompletedQuestCount(playerUUID);
-        int claimedQuests = plugin.getDatabaseManager().getClaimedQuestCount(playerUUID);
+        // Get player statistics from the in-memory cache
+        PlayerData data = plugin.getPlayerDataManager().get(playerUUID);
+        int totalFish = data != null ? data.getUniqueFishCount() : 0;
+        int completedQuests = data != null ? data.getCompletedQuestCount() : 0;
+        int claimedQuests = data != null ? data.getClaimedQuestCount() : 0;
         
         builder.addLoreLine("")
                 .addLoreLine(ChatColor.AQUA + "Fish Collected: " + ChatColor.WHITE + totalFish)
@@ -86,9 +88,10 @@ public class QuestGUI implements Listener {
     }
     
     private ItemStack createQuestItem(Quest quest) {
-        boolean isCompleted = plugin.getDatabaseManager().hasPlayerCompletedQuest(playerUUID, quest.getId());
-        boolean isClaimed = plugin.getDatabaseManager().hasPlayerClaimedQuest(playerUUID, quest.getId());
-        
+        PlayerData data = plugin.getPlayerDataManager().get(playerUUID);
+        boolean isCompleted = data != null && data.hasCompletedQuest(quest.getId());
+        boolean isClaimed = data != null && data.hasClaimedQuest(quest.getId());
+
         String coloredName = ChatColor.translateAlternateColorCodes('&', quest.getGuiColor() + quest.getDisplayName());
         
         ItemBuilder builder = new ItemBuilder(quest.getGuiMaterial())
@@ -101,21 +104,21 @@ public class QuestGUI implements Listener {
         builder.addLoreLine(ChatColor.YELLOW + "Requirement:");
         switch (quest.getType()) {
             case CATCH_TOTAL:
-                int currentTotal = plugin.getDatabaseManager().getTotalCatches(playerUUID);
+                int currentTotal = data != null ? data.getTotalCatches() : 0;
                 builder.addLoreLine(ChatColor.WHITE + "Catch " + quest.getRequiredAmount() + " fish total")
                         .addLoreLine(ChatColor.GRAY + "Progress: " + currentTotal + "/" + quest.getRequiredAmount());
                 break;
             case CATCH_SPECIFIC:
-                boolean hasFish = plugin.getDatabaseManager().hasPlayerCaughtFish(playerUUID, quest.getTarget().getValue());
-                builder.addLoreLine(ChatColor.WHITE + "Catch: " + quest.getTarget().getValue())
-                        .addLoreLine(ChatColor.GRAY + "Status: " + (hasFish ? ChatColor.GREEN + "✓ Caught" : ChatColor.RED + "✗ Not caught"));
+                int specificProgress = data != null ? data.getQuestProgress(quest.getId()) : 0;
+                builder.addLoreLine(ChatColor.WHITE + "Catch " + quest.getRequiredAmount() + "x " + quest.getTarget().getValue())
+                        .addLoreLine(ChatColor.GRAY + "Progress: " + specificProgress + "/" + quest.getRequiredAmount());
                 break;
             case CATCH_RARITY:
                 try {
                     net.fliuxx.mythicFish.fish.FishRarity rarity = net.fliuxx.mythicFish.fish.FishRarity.valueOf(quest.getTarget().getValue().toUpperCase());
-                    int rarityCount = plugin.getDatabaseManager().getPlayerFishCountByRarity(playerUUID, rarity);
+                    int rarityProgress = data != null ? data.getQuestProgress(quest.getId()) : 0;
                     builder.addLoreLine(ChatColor.WHITE + "Catch " + quest.getRequiredAmount() + " " + rarity.getDisplayName() + " fish")
-                            .addLoreLine(ChatColor.GRAY + "Progress: " + rarityCount + "/" + quest.getRequiredAmount());
+                            .addLoreLine(ChatColor.GRAY + "Progress: " + rarityProgress + "/" + quest.getRequiredAmount());
                 } catch (IllegalArgumentException e) {
                     builder.addLoreLine(ChatColor.RED + "Invalid quest configuration");
                 }
@@ -179,10 +182,11 @@ public class QuestGUI implements Listener {
         List<Quest> allQuests = new ArrayList<>(plugin.getQuestManager().getAllQuests());
         if (slot >= 0 && slot < allQuests.size()) {
             Quest quest = allQuests.get(slot);
-            
-            boolean isCompleted = plugin.getDatabaseManager().hasPlayerCompletedQuest(playerUUID, quest.getId());
-            boolean isClaimed = plugin.getDatabaseManager().hasPlayerClaimedQuest(playerUUID, quest.getId());
-            
+
+            PlayerData data = plugin.getPlayerDataManager().get(playerUUID);
+            boolean isCompleted = data != null && data.hasCompletedQuest(quest.getId());
+            boolean isClaimed = data != null && data.hasClaimedQuest(quest.getId());
+
             if (isCompleted && !isClaimed) {
                 plugin.getQuestManager().giveQuestRewards(player, quest);
                 // Refresh the GUI
