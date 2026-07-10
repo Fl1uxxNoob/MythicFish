@@ -74,6 +74,12 @@ public class ConfigManager {
         return config.getBoolean("placeholderapi.enabled", true);
     }
 
+    // --- bStats metrics ---
+
+    public boolean isMetricsEnabled() {
+        return config.getBoolean("metrics.enabled", true);
+    }
+
     public void reloadConfig() {
         plugin.reloadConfig();
         this.config = plugin.getConfig();

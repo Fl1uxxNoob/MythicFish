@@ -9,12 +9,18 @@ import net.fliuxx.mythicFish.listeners.FishingListener;
 import net.fliuxx.mythicFish.listeners.PlayerConnectionListener;
 import net.fliuxx.mythicFish.player.PlayerDataManager;
 import net.fliuxx.mythicFish.quest.QuestManager;
+import org.bstats.bukkit.Metrics;
+import org.bstats.charts.SimplePie;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class MythicFish extends JavaPlugin {
-    
+
+    // bStats plugin id. Register the plugin at https://bstats.org to obtain it, then replace 0.
+    // While this is 0, metrics stay inactive (nothing is sent).
+    private static final int BSTATS_PLUGIN_ID = 0;
+
     private static MythicFish instance;
     private ConfigManager configManager;
     private MessagesManager messagesManager;
@@ -58,11 +64,16 @@ public class MythicFish extends JavaPlugin {
         getCommand("mythicfish").setExecutor(new MythicFishCommand(this));
 
         // Register PlaceholderAPI expansion if the plugin is present and enabled
+        boolean placeholderApiHooked = false;
         if (configManager.isPlaceholderApiEnabled()
                 && Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null) {
             new net.fliuxx.mythicFish.hook.MythicFishExpansion(this).register();
+            placeholderApiHooked = true;
             getLogger().info("Hooked into PlaceholderAPI.");
         }
+
+        // Anonymous usage statistics (bStats)
+        setupMetrics(placeholderApiHooked);
 
         // Preload data for players already online (e.g. after a /reload)
         for (Player player : Bukkit.getOnlinePlayers()) {
@@ -70,6 +81,27 @@ public class MythicFish extends JavaPlugin {
         }
 
         getLogger().info("MythicFish plugin has been enabled successfully!");
+    }
+
+    private void setupMetrics(boolean placeholderApiHooked) {
+        if (!configManager.isMetricsEnabled()) {
+            return;
+        }
+        if (BSTATS_PLUGIN_ID <= 0) {
+            getLogger().info("bStats metrics are not active yet: set BSTATS_PLUGIN_ID "
+                    + "(register at https://bstats.org).");
+            return;
+        }
+
+        Metrics metrics = new Metrics(this, BSTATS_PLUGIN_ID);
+        metrics.addCustomChart(new SimplePie("fish_count",
+                () -> String.valueOf(fishManager.getAllFish().size())));
+        metrics.addCustomChart(new SimplePie("quest_count",
+                () -> String.valueOf(questManager.getAllQuests().size())));
+        metrics.addCustomChart(new SimplePie("async_database",
+                () -> configManager.isAsyncDatabase() ? "enabled" : "disabled"));
+        metrics.addCustomChart(new SimplePie("placeholderapi_hooked",
+                () -> placeholderApiHooked ? "yes" : "no"));
     }
     
     @Override

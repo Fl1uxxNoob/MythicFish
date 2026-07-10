@@ -45,6 +45,12 @@ leaderboard:
 placeholderapi:
   enabled: true
 
+# Anonymous usage statistics via bStats (https://bstats.org).
+# Collects anonymous, aggregate data (server count, players, versions, etc.).
+# You can also disable it globally for all plugins in plugins/bStats/config.yml.
+metrics:
+  enabled: true
+
 # Fish Configuration
 # Each fish has the following properties:
 # - display-name: The name shown to players
