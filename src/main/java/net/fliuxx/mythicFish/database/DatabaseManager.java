@@ -64,9 +64,17 @@ public class DatabaseManager {
             )
         """;
 
+        String createPlayerStatsTable = """
+            CREATE TABLE IF NOT EXISTS player_stats (
+                player_uuid TEXT PRIMARY KEY,
+                total_catches INTEGER DEFAULT 0
+            )
+        """;
+
         try (Statement stmt = connection.createStatement()) {
             stmt.execute(createPlayerFishTable);
             stmt.execute(createPlayerQuestsTable);
+            stmt.execute(createPlayerStatsTable);
 
             // Add progress column if it doesn't exist (for existing databases)
             try {
@@ -129,37 +137,35 @@ public class DatabaseManager {
         }
     }
 
-    public Map<String, Long> getPlayerFishWithTimestamps(UUID playerUUID) {
-        Map<String, Long> fishData = new HashMap<>();
-        String sql = "SELECT fish_id, caught_at FROM player_fish WHERE player_uuid = ?";
+    // Player statistics methods
+    public void incrementTotalCatches(UUID playerUUID) {
+        String sql = "INSERT INTO player_stats (player_uuid, total_catches) VALUES (?, 1) " +
+                    "ON CONFLICT(player_uuid) DO UPDATE SET total_catches = total_catches + 1";
+
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setString(1, playerUUID.toString());
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Failed to increment total catches: " + e.getMessage());
+        }
+    }
+
+    public int getTotalCatches(UUID playerUUID) {
+        String sql = "SELECT total_catches FROM player_stats WHERE player_uuid = ?";
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setString(1, playerUUID.toString());
             ResultSet rs = pstmt.executeQuery();
-
-            while (rs.next()) {
-                fishData.put(rs.getString("fish_id"), rs.getTimestamp("caught_at").getTime());
+            if (rs.next()) {
+                return rs.getInt("total_catches");
             }
         } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to get player fish with timestamps: " + e.getMessage());
+            plugin.getLogger().severe("Failed to get total catches: " + e.getMessage());
         }
-
-        return fishData;
+        return 0;
     }
 
     // Quest-related methods
-    public void addCompletedQuest(UUID playerUUID, String questId) {
-        String sql = "INSERT OR IGNORE INTO player_quests (player_uuid, quest_id) VALUES (?, ?)";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, playerUUID.toString());
-            pstmt.setString(2, questId);
-            pstmt.executeUpdate();
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to add completed quest: " + e.getMessage());
-        }
-    }
-
     public boolean hasPlayerCompletedQuest(UUID playerUUID, String questId) {
         String sql = "SELECT completed FROM player_quests WHERE player_uuid = ? AND quest_id = ?";
 
@@ -234,34 +240,9 @@ public class DatabaseManager {
         return 0;
     }
 
-    public void setQuestProgress(UUID playerUUID, String questId, int progress) {
-        String sql = "INSERT OR REPLACE INTO player_quests (player_uuid, quest_id, progress, completed, claimed) " +
-                    "VALUES (?, ?, ?, " +
-                    "COALESCE((SELECT completed FROM player_quests WHERE player_uuid = ? AND quest_id = ?), 0), " +
-                    "COALESCE((SELECT claimed FROM player_quests WHERE player_uuid = ? AND quest_id = ?), 0))";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, playerUUID.toString());
-            pstmt.setString(2, questId);
-            pstmt.setInt(3, progress);
-            pstmt.setString(4, playerUUID.toString());
-            pstmt.setString(5, questId);
-            pstmt.setString(6, playerUUID.toString());
-            pstmt.setString(7, questId);
-            pstmt.executeUpdate();
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to set quest progress: " + e.getMessage());
-        }
-    }
-
     public int getPlayerFishCountByRarity(UUID playerUUID, net.fliuxx.mythicFish.fish.FishRarity rarity) {
-        String sql = """
-            SELECT COUNT(*) FROM player_fish pf 
-            JOIN (SELECT fish_id, rarity FROM fish_config) fc ON pf.fish_id = fc.fish_id 
-            WHERE pf.player_uuid = ? AND fc.rarity = ?
-        """;
-
-        // Since we don't have a fish_config table, we'll get all player fish and check their rarity
+        // Rarity is defined in config (not stored in the DB), so we resolve it in memory:
+        // fetch the player's caught fish and count those matching the requested rarity.
         Set<String> playerFish = getPlayerFish(playerUUID);
         int count = 0;
 
@@ -291,15 +272,19 @@ public class DatabaseManager {
     public void resetPlayerCollection(UUID playerUUID) {
         String deleteFishSql = "DELETE FROM player_fish WHERE player_uuid = ?";
         String deleteQuestsSql = "DELETE FROM player_quests WHERE player_uuid = ?";
+        String deleteStatsSql = "DELETE FROM player_stats WHERE player_uuid = ?";
 
         try (PreparedStatement fishStmt = connection.prepareStatement(deleteFishSql);
-             PreparedStatement questStmt = connection.prepareStatement(deleteQuestsSql)) {
+             PreparedStatement questStmt = connection.prepareStatement(deleteQuestsSql);
+             PreparedStatement statsStmt = connection.prepareStatement(deleteStatsSql)) {
 
             fishStmt.setString(1, playerUUID.toString());
             questStmt.setString(1, playerUUID.toString());
+            statsStmt.setString(1, playerUUID.toString());
 
             fishStmt.executeUpdate();
             questStmt.executeUpdate();
+            statsStmt.executeUpdate();
         } catch (SQLException e) {
             plugin.getLogger().severe("Failed to reset player collection: " + e.getMessage());
         }

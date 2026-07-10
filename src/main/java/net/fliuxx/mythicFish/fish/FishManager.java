@@ -1,7 +1,11 @@
 package net.fliuxx.mythicFish.fish;
 
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
 import net.fliuxx.mythicFish.MythicFish;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 import org.bukkit.block.Biome;
 import org.bukkit.configuration.ConfigurationSection;
 
@@ -60,14 +64,17 @@ public class FishManager {
     }
     
     private List<Biome> parseBiomes(List<String> biomeNames) {
+        Registry<Biome> biomeRegistry = RegistryAccess.registryAccess().getRegistry(RegistryKey.BIOME);
         return biomeNames.stream()
                 .map(name -> {
-                    try {
-                        return Biome.valueOf(name.toUpperCase());
-                    } catch (IllegalArgumentException e) {
+                    NamespacedKey key = name.contains(":")
+                            ? NamespacedKey.fromString(name.toLowerCase())
+                            : NamespacedKey.minecraft(name.toLowerCase());
+                    Biome biome = key != null ? biomeRegistry.get(key) : null;
+                    if (biome == null) {
                         plugin.getLogger().warning("Invalid biome name: " + name);
-                        return null;
                     }
+                    return biome;
                 })
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());

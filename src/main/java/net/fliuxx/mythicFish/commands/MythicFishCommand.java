@@ -144,7 +144,9 @@ public class MythicFishCommand implements CommandExecutor, TabCompleter {
                 }
                 
                 plugin.getDatabaseManager().addFishToPlayer(target.getUniqueId(), fishId, "ADMIN_GIVEN");
-                
+                plugin.getDatabaseManager().incrementTotalCatches(target.getUniqueId());
+                plugin.getPlayerDataManager().invalidateCache(target.getUniqueId());
+
                 // Update quest progress when fish is added via admin command
                 if (target.isOnline()) {
                     Player onlinePlayer = (Player) target;
@@ -183,14 +185,26 @@ public class MythicFishCommand implements CommandExecutor, TabCompleter {
     }
     
     private void handleGiveFishCommand(CommandSender sender, String[] args) {
+        if (args.length < 4) {
+            sender.sendMessage(plugin.getMessagesManager().getMessage("admin-give-usage"));
+            return;
+        }
         handleSetStatsCommand(sender, new String[]{"admin", "setstats", args[2], "give", args[3]});
     }
-    
+
     private void handleRemoveFishCommand(CommandSender sender, String[] args) {
+        if (args.length < 4) {
+            sender.sendMessage(plugin.getMessagesManager().getMessage("admin-remove-usage"));
+            return;
+        }
         handleSetStatsCommand(sender, new String[]{"admin", "setstats", args[2], "remove", args[3]});
     }
-    
+
     private void handleResetCommand(CommandSender sender, String[] args) {
+        if (args.length < 3) {
+            sender.sendMessage(plugin.getMessagesManager().getMessage("admin-reset-usage"));
+            return;
+        }
         handleSetStatsCommand(sender, new String[]{"admin", "setstats", args[2], "reset"});
     }
     

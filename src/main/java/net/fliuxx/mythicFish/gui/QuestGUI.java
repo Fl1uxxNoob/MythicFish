@@ -8,8 +8,10 @@ import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
@@ -99,7 +101,7 @@ public class QuestGUI implements Listener {
         builder.addLoreLine(ChatColor.YELLOW + "Requirement:");
         switch (quest.getType()) {
             case CATCH_TOTAL:
-                int currentTotal = plugin.getPlayerDataManager().getTotalFishCount(playerUUID);
+                int currentTotal = plugin.getDatabaseManager().getTotalCatches(playerUUID);
                 builder.addLoreLine(ChatColor.WHITE + "Catch " + quest.getRequiredAmount() + " fish total")
                         .addLoreLine(ChatColor.GRAY + "Progress: " + currentTotal + "/" + quest.getRequiredAmount());
                 break;
@@ -154,25 +156,29 @@ public class QuestGUI implements Listener {
         }
         
         event.setCancelled(true);
-        
+
         if (event.getWhoClicked() != player) {
             return;
         }
-        
-        ItemStack clickedItem = event.getCurrentItem();
-        if (clickedItem == null || clickedItem.getType() == Material.BLACK_STAINED_GLASS_PANE) {
+
+        // Only process clicks inside the quest GUI itself, not the player's own inventory
+        if (!inventory.equals(event.getClickedInventory())) {
             return;
         }
-        
-        // Find the quest for this slot
-        List<Quest> allQuests = new ArrayList<>(plugin.getQuestManager().getAllQuests());
+
+        ItemStack clickedItem = event.getCurrentItem();
+        if (clickedItem == null || clickedItem.getType() == Material.GRAY_STAINED_GLASS_PANE) {
+            return;
+        }
+
         int slot = event.getSlot();
-        
-        if (slot == 22) return; // Player stats item
-        
-        int questIndex = slot > 22 ? slot - 1 : slot;
-        if (questIndex >= 0 && questIndex < allQuests.size()) {
-            Quest quest = allQuests.get(questIndex);
+
+        if (slot == 49) return; // Player stats item
+
+        // Quests are placed sequentially in slots 0..n-1 (see setupInventory)
+        List<Quest> allQuests = new ArrayList<>(plugin.getQuestManager().getAllQuests());
+        if (slot >= 0 && slot < allQuests.size()) {
+            Quest quest = allQuests.get(slot);
             
             boolean isCompleted = plugin.getDatabaseManager().hasPlayerCompletedQuest(playerUUID, quest.getId());
             boolean isClaimed = plugin.getDatabaseManager().hasPlayerClaimedQuest(playerUUID, quest.getId());
@@ -186,6 +192,14 @@ public class QuestGUI implements Listener {
             } else {
                 player.sendMessage(plugin.getMessagesManager().getMessage("quest-not-completed"));
             }
+        }
+    }
+
+    @EventHandler
+    public void onInventoryClose(InventoryCloseEvent event) {
+        if (event.getInventory().equals(inventory) && event.getPlayer() == player) {
+            // Unregister this per-GUI listener to avoid leaking handler instances
+            HandlerList.unregisterAll(this);
         }
     }
 }

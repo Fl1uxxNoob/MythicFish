@@ -9,8 +9,10 @@ import org.bukkit.Material;
 import org.bukkit.block.Biome;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
@@ -148,7 +150,7 @@ public class CollectionGUI implements Listener {
     }
     
     private String formatBiomeName(Biome biome) {
-        return biome.name().toLowerCase().replace('_', ' ').replace("biome", "").trim();
+        return biome.getKey().value().toLowerCase().replace('_', ' ').replace("biome", "").trim();
     }
     
     public void open() {
@@ -162,12 +164,20 @@ public class CollectionGUI implements Listener {
         }
         
         event.setCancelled(true);
-        
+
         if (event.getWhoClicked() != player) {
             return;
         }
-        
+
         // Prevent any clicking in the collection GUI
         // This is a view-only interface
+    }
+
+    @EventHandler
+    public void onInventoryClose(InventoryCloseEvent event) {
+        if (event.getInventory().equals(inventory) && event.getPlayer() == player) {
+            // Unregister this per-GUI listener to avoid leaking handler instances
+            HandlerList.unregisterAll(this);
+        }
     }
 }

@@ -1,8 +1,8 @@
 
 # MythicFish
 
-![version](https://img.shields.io/badge/version-1.0.0-blue.svg)
-![MC version](https://img.shields.io/badge/MC-1.20+-brightgreen.svg)
+![version](https://img.shields.io/badge/version-1.2.0-blue.svg)
+![MC version](https://img.shields.io/badge/MC-1.21.4--26.2-brightgreen.svg)
 
 A Minecraft plugin for Bukkit/Spigot servers that transforms the fishing experience with custom fish, collections, and quests.
 
@@ -162,7 +162,7 @@ Fish fish = fishManager.getFish("salmon_king");
 ## 🚨 Troubleshooting
 
 ### Plugin won't start
-1. Check Java version (requires Java 17+)
+1. Check Java version (requires Java 21+)
 2. Check server logs for errors
 3. Ensure database can be created
 
@@ -178,9 +178,9 @@ Fish fish = fishManager.getFish("salmon_king");
 
 ## 📝 Requirements
 
-- **Minecraft**: 1.20+
-- **Server**: Bukkit/Spigot/Paper
-- **Java**: 17+
+- **Minecraft**: 1.21.4 – 26.2
+- **Server**: Paper (recommended) / Spigot
+- **Java**: 21+
 - **Dependencies**: No external dependencies required
 
 ## 📄 License

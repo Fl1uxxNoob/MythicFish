@@ -73,20 +73,23 @@ public class FishingListener implements Listener {
         boolean isNewFish = !plugin.getDatabaseManager().hasPlayerCaughtFish(player.getUniqueId(), caughtFish.getId());
 
         // Always add the catch to database for statistics tracking and update cache
-        plugin.getPlayerDataManager().addFishToPlayer(player.getUniqueId(), caughtFish.getId(), biome.name());
+        plugin.getPlayerDataManager().addFishToPlayer(player.getUniqueId(), caughtFish.getId(), biome.getKey().toString());
+
+        // Track total catches (counts every catch, including repeats) for CATCH_TOTAL quests
+        plugin.getDatabaseManager().incrementTotalCatches(player.getUniqueId());
 
         if (isNewFish) {
-            player.sendMessage(plugin.getMessagesManager().getMessage("new-fish-caught", 
+            player.sendMessage(plugin.getMessagesManager().getMessage("new-fish-caught",
                     "{fish}", caughtFish.getDisplayName(),
                     "{rarity}", caughtFish.getRarity().getColoredDisplayName()));
-
-            // Check and complete quests ONLY for new fish
-            plugin.getQuestManager().checkQuestCompletion(player, caughtFish);
         } else {
             player.sendMessage(plugin.getMessagesManager().getMessage("fish-caught",
                     "{fish}", caughtFish.getDisplayName(),
                     "{rarity}", caughtFish.getRarity().getColoredDisplayName()));
         }
+
+        // Check and progress quests on every catch (repeats count toward totals)
+        plugin.getQuestManager().checkQuestCompletion(player, caughtFish);
 
         // Add fish item to player inventory
         if (player.getInventory().firstEmpty() != -1) {

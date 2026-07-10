@@ -32,6 +32,7 @@ admin-help: |
 admin-setstats-usage: "&cUsage: /mfish admin setstats <player> <give|remove|reset> [fishId]"
 admin-give-usage: "&cUsage: /mfish admin setstats <player> give <fishId>"
 admin-remove-usage: "&cUsage: /mfish admin setstats <player> remove <fishId>"
+admin-reset-usage: "&cUsage: /mfish admin setstats <player> reset"
 player-not-found: "&cPlayer {player} not found!"
 fish-not-found: "&cFish {fish} not found!"
 admin-fish-given: "&aGiven fish {fish} to player {player}!"

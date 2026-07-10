@@ -18,7 +18,8 @@ public class QuestManager {
 
     public QuestManager(MythicFish plugin) {
         this.plugin = plugin;
-        this.quests = new HashMap<>();
+        // LinkedHashMap preserves config order so GUI slot->quest mapping stays stable
+        this.quests = new LinkedHashMap<>();
     }
 
     public void loadQuests() {
@@ -79,13 +80,9 @@ public class QuestManager {
 
             switch (quest.getType()) {
                 case CATCH_TOTAL:
-                    // For CATCH_TOTAL, check if this is a new fish (not already in collection)
-                    boolean isNewFish = !plugin.getPlayerDataManager().hasPlayerCaughtFish(playerUUID, caughtFish.getId());
-                    if (isNewFish) {
-                        int currentProgress = plugin.getDatabaseManager().getQuestProgress(playerUUID, quest.getId());
-                        plugin.getDatabaseManager().setQuestProgress(playerUUID, quest.getId(), currentProgress + 1);
-                        shouldComplete = (currentProgress + 1) >= quest.getRequiredAmount();
-                    }
+                    // Total catches counts every catch (repeats included), tracked in player_stats
+                    int totalCatches = plugin.getDatabaseManager().getTotalCatches(playerUUID);
+                    shouldComplete = totalCatches >= quest.getRequiredAmount();
                     break;
 
                 case CATCH_SPECIFIC:
@@ -117,7 +114,7 @@ public class QuestManager {
                     plugin.getDatabaseManager().markQuestCompleted(playerUUID, quest.getId());
 
                     String message = plugin.getMessagesManager().getMessage("quest-completed",
-                            "{quest_name}", quest.getDisplayName());
+                            "{quest}", quest.getDisplayName());
                     player.sendMessage(message);
                 }
             }

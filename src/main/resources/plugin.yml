@@ -1,8 +1,8 @@
 name: MythicFish
-version: 1.0.0
+version: ${version}
 author: Fl1uxxNoob
 main: net.fliuxx.mythicFish.MythicFish
-api-version: 1.20
+api-version: 1.21
 description: Custom fishing plugin with collectible fish system
 website: https://github.com/Fl1uxxNoob/MythicFish
 
